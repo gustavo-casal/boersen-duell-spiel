@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0b0e1a">
-<title>Börsen-Duell – Simulation v0.2</title>
+<title>Börsen-Duell – Simulation v0.3</title>
 <style>
   :root {
     --bg: #0b0e1a;
@@ -22,6 +22,8 @@
     --violet: #a26bff;
     --trader: #ff4dd2;
     --investor: #36d6ff;
+    --cheap: #2bff88;
+    --pricey: #ff5d5d;
     --radius: 18px;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
@@ -40,6 +42,7 @@
     min-height: 100vh;
     padding-bottom: env(safe-area-inset-bottom);
   }
+  body.locked { overflow: hidden; }
   button { font: inherit; color: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
   /* ---------- Simulations-Banner (immer sichtbar) ---------- */
@@ -91,6 +94,7 @@
   .btn-primary:hover { filter: brightness(1.1); }
   .btn-ghost { background: var(--card); border: 1px solid var(--line); color: var(--text); }
   .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .btn-share { background: linear-gradient(135deg, #ffcc00, #ff8a3d); color: #1a1000; box-shadow: 0 6px 22px rgba(255, 204, 0, .25); }
 
   main { max-width: 1400px; margin: 0 auto; padding: 16px; }
 
@@ -118,7 +122,7 @@
   .tag.kennzahlen { background: rgba(0, 229, 255, .15); color: var(--accent2); }
   .tag.zahlen { background: rgba(255, 204, 0, .15); color: var(--accent); }
   .news .empty { color: var(--muted); font-style: italic; border-left-color: var(--line); }
-  .news .wk { font-family: var(--mono); color: var(--muted); font-size: 12px; flex: none; padding-top: 3px; }
+  .news .wk { font-family: var(--mono); color: var(--muted); font-size: 12px; flex: none; padding-top: 3px; min-width: 42px; }
   .news-old { margin-top: 10px; }
   .news-old summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 0; min-height: 36px; display: flex; align-items: center; }
   .news-old ul { margin-top: 8px; max-height: 280px; overflow: auto; }
@@ -147,7 +151,7 @@
     content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
     background: var(--c); box-shadow: 0 0 18px var(--c);
   }
-  .card-head { display: flex; align-items: center; gap: 12px; }
+  .card-head { display: flex; align-items: center; gap: 12px; cursor: pointer; }
   .icon {
     width: 52px; height: 52px; flex: none; border-radius: 14px;
     display: grid; place-items: center; font-size: 26px;
@@ -159,8 +163,8 @@
   .sector { color: var(--muted); font-size: 13px; }
   .badge { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; background: rgba(255,255,255,.08); color: var(--muted); }
   .price-wrap { margin-left: auto; text-align: right; }
-  .price { font-family: var(--mono); font-size: 22px; font-weight: 800; border-radius: 8px; padding: 0 4px; }
-  .chg { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+  .price { font-family: var(--mono); font-size: 22px; font-weight: 800; border-radius: 8px; padding: 0 4px; white-space: nowrap; }
+  .chg { font-family: var(--mono); font-size: 14px; font-weight: 700; white-space: nowrap; }
   .up { color: var(--up); }
   .down { color: var(--down); }
   .flash-up { animation: flashUp .7s ease; }
@@ -168,28 +172,61 @@
   @keyframes flashUp { 0% { background: rgba(43,255,136,.45); } 100% { background: transparent; } }
   @keyframes flashDown { 0% { background: rgba(255,77,109,.45); } 100% { background: transparent; } }
   @keyframes pop { 0% { transform: translateY(-4px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 204, 0, .5); } 50% { box-shadow: 0 0 0 6px rgba(255, 204, 0, 0); } }
 
   .chart-box { margin: 12px -4px 4px; position: relative; }
-  canvas.chart { width: 100%; height: 170px; display: block; }
-  .chart-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); padding: 0 4px; flex-wrap: wrap; }
+  canvas.chart { width: 100%; height: 180px; display: block; cursor: zoom-in; }
+  .zoom-btn {
+    position: absolute; left: 8px; top: 6px; min-height: 36px; padding: 0 10px; border-radius: 10px; cursor: pointer;
+    background: rgba(11, 14, 26, .75); border: 1px solid var(--line); font-size: 13px; font-weight: 800; color: var(--text);
+  }
+  .chart-legend { display: flex; gap: 6px 14px; font-size: 12px; color: var(--muted); padding: 0 4px; flex-wrap: wrap; align-items: center; }
   .chart-legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
-  .chart-legend i.dash { background: repeating-linear-gradient(90deg, #c9cff5 0 4px, transparent 4px 7px); }
-  .chart-legend i.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .chart-legend i.fair { height: 3px; background: #fff; box-shadow: 0 0 6px #fff; }
+  .chart-legend i.zone { width: 14px; height: 10px; border-radius: 3px; }
+  .chart-legend i.zone.pricey { background: rgba(255, 93, 93, .35); }
+  .chart-legend i.zone.cheap { background: rgba(43, 255, 136, .3); }
+
+  .warn-badge {
+    display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px;
+    min-height: 44px; padding: 6px 12px; border-radius: 12px; cursor: pointer; text-align: left;
+    background: rgba(255, 204, 0, .12); border: 2px solid var(--accent); color: var(--accent);
+    font-weight: 800; font-size: 14px; animation: pulse 2s ease infinite;
+  }
+  .warn-badge[hidden] { display: none; }
+  .warn-badge small { font-weight: 600; color: #ffe37a; margin-left: auto; font-size: 12px; }
+
+  /* ---------- Bewertungs-Anzeige (visuell) ---------- */
+  .gauge { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); border: 1px solid var(--line); }
+  .g-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; }
+  .g-top span { color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; font-size: 12px; }
+  .g-top b { font-family: var(--mono); font-size: 14px; }
+  .g-bar {
+    position: relative; height: 14px; margin: 8px 0 4px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--cheap) 0%, rgba(43,255,136,.25) 38%, rgba(255,255,255,.25) 50%, rgba(255,93,93,.25) 62%, var(--pricey) 100%);
+  }
+  .g-bar::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: #fff; box-shadow: 0 0 6px #fff; }
+  .g-mark {
+    position: absolute; top: 50%; width: 22px; height: 22px; border-radius: 50%; transform: translate(-50%, -50%);
+    background: var(--c, #fff); border: 3px solid #0b0e1a; box-shadow: 0 0 10px var(--c, #fff); z-index: 1;
+    transition: left .5s ease;
+  }
+  .g-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .g-scale .c { color: var(--cheap); } .g-scale .p { color: var(--pricey); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { font-size: 12px; font-weight: 800; padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
+  .chip.bad { color: #ff8a9e; border-color: rgba(255, 77, 109, .5); background: rgba(255, 77, 109, .1); }
+  .chip.good { color: var(--up); border-color: rgba(43, 255, 136, .45); background: rgba(43, 255, 136, .08); }
 
   .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-  .metric { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
-  .metric .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .metric { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 12px; padding: 10px; }
+  .metric.good { border-left-color: var(--up); }
+  .metric.bad { border-left-color: var(--down); }
+  .metric .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; display: flex; justify-content: space-between; gap: 6px; }
   .metric .val { font-family: var(--mono); font-size: 18px; font-weight: 800; margin-top: 2px; }
   .metric .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
   .metric .exp { font-size: 13px; color: #c3c9ee; margin-top: 6px; line-height: 1.35; }
-  body.no-exp .metric .exp { display: none; }
-
-  .verdict {
-    margin-top: 12px; padding: 10px 12px; border-radius: 12px;
-    background: rgba(255,255,255,.04); border: 1px dashed var(--line);
-    font-size: 14px;
-  }
-  .verdict b { color: var(--accent); }
+  body.no-exp .exp { display: none; }
 
   .vol { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; margin-top: 4px; letter-spacing: .03em; }
   .vol-ruhig { background: rgba(0, 229, 255, .12); color: var(--accent2); }
@@ -242,6 +279,13 @@
   .stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
   .stat .val { font-family: var(--mono); font-size: 17px; font-weight: 800; }
   .stat.total .val { color: var(--dc); }
+  .risk { margin: 0 0 12px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.2); }
+  .risk h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .risk .stats { margin: 0; }
+  .risk .stat .val { font-size: 15px; }
+  .risk .dd .val { color: var(--down); }
+  .risk svg { display: block; width: 100%; height: 48px; margin-top: 8px; }
+  .risk .exp { font-size: 12px; color: #c3c9ee; margin-top: 6px; }
   .result-line { font-family: var(--mono); font-size: 14px; font-weight: 700; margin-bottom: 8px; }
   .positions { display: grid; gap: 6px; }
   .pos-row {
@@ -259,7 +303,7 @@
   .zone-info { margin-top: 10px; font-size: 13px; color: var(--muted); padding: 8px 10px; border-radius: 10px; border: 1px dashed var(--line); }
   .zone-info b { color: var(--text); }
 
-  /* ---------- Handel in der Firmen-Karte ---------- */
+  /* ---------- Handel (Karte und Detailansicht) ---------- */
   .trade {
     margin-top: 12px; padding: 12px; border-radius: 14px;
     background: rgba(0,0,0,.28); border: 1px solid var(--line);
@@ -277,6 +321,7 @@
   .seg button[aria-pressed="true"] { background: var(--sc); color: #07091a; }
   .seg button[data-depot="trader"], .seg button[data-mode="trade"] { --sc: var(--trader); }
   .seg button[data-depot="investor"], .seg button[data-mode="lang"] { --sc: var(--investor); }
+  .seg button[data-range] { --sc: var(--accent2); min-width: 52px; }
   .stepper { display: inline-flex; align-items: center; gap: 4px; }
   .stepper button {
     min-width: 44px; min-height: 44px; border-radius: 10px; cursor: pointer;
@@ -291,6 +336,27 @@
   .zone-meter .track { width: 90px; height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
   .zone-meter .track i { display: block; height: 100%; background: var(--trader); border-radius: 999px; }
   .zone-meter.full .track i { background: var(--accent); }
+
+  /* ---------- Detailansicht ---------- */
+  .detail {
+    position: fixed; inset: 0; z-index: 80; overflow: auto; -webkit-overflow-scrolling: touch;
+    background: var(--bg);
+  }
+  .detail[hidden] { display: none; }
+  .detail .sim-banner { position: sticky; top: 0; z-index: 2; }
+  .d-wrap { max-width: 1200px; margin: 0 auto; padding: 12px 16px 32px; }
+  .d-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .d-head .price-wrap { margin-left: 0; text-align: left; }
+  .d-head .d-actions { margin-left: auto; display: flex; gap: 8px; }
+  .d-close { min-width: 52px; font-size: 22px; padding: 0 14px; }
+  .d-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 8px; }
+  .d-hint { font-size: 12px; color: var(--muted); }
+  .d-chart { position: relative; border-radius: 16px; border: 1px solid var(--line); background: rgba(0,0,0,.3); overflow: hidden; }
+  .d-chart canvas { display: block; width: 100%; height: min(58vh, 540px); min-height: 280px; touch-action: none; cursor: grab; }
+  .d-chart canvas.grabbing { cursor: grabbing; }
+  .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; align-items: start; }
+  .d-grid .trade { margin-top: 12px; }
+  .d-range-info { font-family: var(--mono); font-size: 13px; color: var(--muted); }
 
   /* ---------- Freundliche Hinweise (Dialog + Toast) ---------- */
   .overlay {
@@ -310,11 +376,14 @@
   .m-body { color: #c3c9ee; font-size: 16px; }
   .m-body p { margin: 8px 0; }
   .m-body b { color: var(--text); }
+  .m-body ul { margin: 8px 0; padding-left: 20px; }
+  .m-body li { margin: 4px 0; }
   .m-why { background: rgba(255,255,255,.04); border-radius: 12px; padding: 10px 12px; }
+  .m-share { white-space: pre-wrap; font-family: var(--mono); font-size: 13px; background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; user-select: all; -webkit-user-select: all; }
   .m-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
   .m-actions .btn { flex: 1 1 auto; }
   .toast {
-    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 90;
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 110;
     transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
     background: var(--card2); border: 1px solid var(--up); color: var(--text);
     padding: 12px 18px; border-radius: 14px; font-weight: 700; max-width: calc(100% - 32px);
@@ -325,7 +394,7 @@
   footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px 40px; }
 
   @media (max-width: 860px) {
-    .depots { grid-template-columns: 1fr; }
+    .depots, .d-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 700px) {
     .logo { font-size: 18px; width: 100%; }
@@ -335,6 +404,7 @@
     .duel-side .d-val { font-size: 15px; }
     .stats { grid-template-columns: 1fr 1fr; }
     .stat.total { grid-column: 1 / -1; }
+    .risk .stat.dd { grid-column: 1 / -1; }
   }
   @media (max-width: 380px) {
     .grid { grid-template-columns: 1fr; }
@@ -347,11 +417,12 @@
 <div class="sim-banner" role="note">⚠ Simulation <small>– erfundene Kurse, keine echten Daten, keine Anlageberatung</small></div>
 
 <header class="top">
-  <div class="logo">BÖRSEN-DUELL<span>v0.2 · Trader gegen Investor</span></div>
+  <div class="logo">BÖRSEN-DUELL<span>v0.3 · Muster + Kennzahlen</span></div>
   <div class="week-box">Woche <b id="week">0</b></div>
   <div class="rate-box" title="Leitzins der Zentralbank (simuliert)">Zins <b id="rate">4,0 %</b></div>
   <button class="btn btn-ghost" id="btnExp" aria-pressed="true">💡 Erklärungen</button>
   <button class="btn btn-ghost" id="btnReset">↺ Neustart</button>
+  <button class="btn btn-share" id="btnShare">📤 Ergebnis teilen</button>
   <button class="btn btn-ghost" id="btnTen">⏩ 10 Wochen</button>
   <button class="btn btn-primary" id="btnNext">Nächste Woche ▶</button>
 </header>
@@ -378,10 +449,12 @@
   <details class="help">
     <summary>❓ So funktioniert dieser Markt</summary>
     <div class="body">
-      <p><b>Langfristig</b> zählt, wie gut eine Firma wirklich ist: Umsatz, Gewinn, Wachstum und Schulden ergeben den <b>„Wert laut Kennzahlen“</b> (gestrichelte Linie im Chart). Der Kurs wird wie von einem Gummiband immer wieder zu dieser Linie gezogen.</p>
-      <p><b>Kurzfristig</b> springt der Kurs durch Zufall und News hin und her. Manche News ändern nur die <b>Stimmung</b> – dieser Effekt verpufft meist wieder. Andere News ändern die <b>Kennzahlen</b> – dann verschiebt sich auch der Wert der Firma dauerhaft.</p>
-      <p><b>Schwankung:</b> Große, etablierte Firmen wie Google bewegen sich eher <b>ruhig</b>. NVIDIA und junge Start-ups springen viel <b>stärker</b> hoch und runter – mehr Chance, aber auch mehr Risiko.</p>
-      <p><b>Das Duell:</b> Du führst zwei Depots mit je 10.000 € Spielgeld. Im <b>⚡ Trader-Depot</b> kaufst und verkaufst du kurzfristig, so oft du willst. Im <b>🌳 Investor-Depot</b> kaufst du Firmen für lange Zeit – nur eine kleine <b>Trading-Zone</b> (höchstens 15 % des Depots pro Firma) ist für kurze Trades da. Oben siehst du, welche Strategie gerade vorne liegt.</p>
+      <p><b>Langfristig</b> zählt, wie gut eine Firma wirklich ist: Umsatz, Gewinn, Wachstum und Schulden ergeben den <b>„Wert laut Kennzahlen“</b> – die <b>weiße Linie</b> im Chart. Liegt der Kurs <b style="color:var(--pricey)">darüber</b> (rote Zone), ist die Aktie eher <b>teuer</b>. Liegt er <b style="color:var(--cheap)">darunter</b> (grüne Zone), ist sie eher <b>günstig</b>.</p>
+      <p><b>Kurzfristig</b> bewegen Zufall und News den Kurs. Jeder Handelstag wird einzeln berechnet – eine Woche hat 5 Handelstage. Die Symbole im Chart sind News: 💬 Stimmung, 📊 Kennzahlen, 📋 Quartalszahlen. <b>Tippe sie an</b>, um zu lesen, was passiert ist.</p>
+      <p><b>Chart-Muster</b> (z. B. „der Kurs steigt schon seit Tagen“) klappen manchmal – aber oft auch nicht. Kurz-Trends sind kurz und schwer vorherzusagen. Bei Firmen mit <b>schwachen Zahlen</b> (Verlust, hohe Schulden, KGV zu hoch) kippen sie besonders oft. Bei <b>soliden</b> Firmen kehrt der Kurs eher zum Kennzahlen-Wert zurück. Achte auf das Warnsymbol <b>⚠️ „Muster gut, Zahlen schwach“</b>.</p>
+      <p><b>Großer Chart:</b> Tippe auf eine Firma. Dort kannst du den Zeitraum wählen (1T bis Alles), mit zwei Fingern zoomen und wischen – am Mac mit dem Mausrad zoomen und mit der Maus ziehen. Kaufen und verkaufen geht dort direkt.</p>
+      <p><b>Das Duell:</b> Zwei Depots mit je 10.000 € Spielgeld. Im <b>⚡ Trader-Depot</b> handelst du kurzfristig, so oft du willst. Im <b>🌳 Investor-Depot</b> kaufst du für lange Zeit – nur eine kleine <b>Trading-Zone</b> (höchstens 15 % des Depots pro Firma) ist für kurze Trades da. Bei jedem Depot siehst du auch das <b>Risiko</b>: höchster Stand, tiefster Stand und größter Rückgang.</p>
+      <p><b>Speichern:</b> Dein Spielstand wird automatisch in diesem Browser gespeichert. Mit „📤 Ergebnis teilen“ kannst du dein Ergebnis verschicken.</p>
       <p>Alle Zahlen sind erfunden bzw. stark vereinfacht. Google und NVIDIA sind hier nur <b>simulierte</b> Versionen der echten Firmen, ihre Kennzahlen sind <b>ungefähre Werte</b>.</p>
     </div>
   </details>
@@ -392,9 +465,9 @@
     <h2 id="newsTitle">📰 News dieser Woche</h2>
     <ul id="newsNow"></ul>
     <div class="legend-tags">
-      <span><span class="tag stimmung">Stimmung</span> wirkt nur kurz</span>
-      <span><span class="tag kennzahlen">Kennzahlen</span> wirkt langfristig</span>
-      <span><span class="tag zahlen">Quartalszahlen</span> Firma zeigt ihre Zahlen</span>
+      <span><span class="tag stimmung">💬 Stimmung</span> wirkt nur kurz</span>
+      <span><span class="tag kennzahlen">📊 Kennzahlen</span> wirkt langfristig</span>
+      <span><span class="tag zahlen">📋 Quartalszahlen</span> Firma zeigt ihre Zahlen</span>
     </div>
     <details class="news-old">
       <summary>Ältere News anzeigen</summary>
@@ -407,8 +480,48 @@
 
 <footer>
   Börsen-Duell ist eine <b>Simulation</b> zum Lernen. Alle Kurse und Kennzahlen sind erfunden oder vereinfacht.<br>
-  Keine echten Kursdaten · Keine Anlageberatung · Keine Firmenlogos.
+  Keine echten Kursdaten · Keine Anlageberatung · Keine Firmenlogos.<br>
+  <span id="saveInfo">💾 Spielstand wird automatisch in diesem Browser gespeichert.</span>
 </footer>
+
+<!-- Detailansicht einer Firma -->
+<div class="detail" id="detail" hidden role="dialog" aria-modal="true" aria-labelledby="dName">
+  <div class="sim-banner" role="note">⚠ Simulation <small>– erfundene Kurse, keine Anlageberatung</small></div>
+  <div class="d-wrap" id="dWrap">
+    <div class="d-head">
+      <div class="icon" id="dIcon" aria-hidden="true"></div>
+      <div>
+        <div class="name" id="dName"></div>
+        <div class="sector" id="dSector"></div>
+      </div>
+      <div class="price-wrap">
+        <div class="price" id="dPrice"></div>
+        <div class="chg" id="dChg"></div>
+      </div>
+      <div class="d-actions">
+        <button class="btn btn-primary" id="dNext">Nächste Woche ▶</button>
+        <button class="btn btn-ghost d-close" id="dClose" aria-label="Schließen">✕</button>
+      </div>
+    </div>
+    <button class="warn-badge" id="dWarn" hidden>⚠️ Vorsicht: Muster gut, Zahlen schwach <small>antippen</small></button>
+    <div class="d-tools">
+      <div class="seg" role="group" aria-label="Zeitraum">
+        <button data-range="1T">1T</button><button data-range="1W">1W</button><button data-range="1M">1M</button><button data-range="1J">1J</button><button data-range="all">Alles</button>
+      </div>
+      <span class="d-range-info" id="dRangeInfo"></span>
+      <span class="d-hint">✌️ Zwei Finger: zoomen · 👆 Wischen: verschieben · 🖱️ Mausrad: zoomen · Symbole antippen</span>
+    </div>
+    <div class="d-chart"><canvas id="dCanvas" aria-label="Großer Kurs-Chart"></canvas></div>
+    <div class="chart-legend" id="dLegend" style="margin-top:8px"></div>
+    <div class="d-grid">
+      <div>
+        <div id="dGauge"></div>
+        <div class="metrics" id="dMetrics"></div>
+      </div>
+      <div class="trade" id="dTrade"></div>
+    </div>
+  </div>
+</div>
 
 <div class="overlay" id="overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
@@ -436,12 +549,30 @@ function randn() {
 }
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const pick = arr => arr[Math.floor(rand() * arr.length)];
+const round6 = x => Number(x.toPrecision(6));
+
+// kleiner Zufallsgenerator mit Startwert – damit der Tagesverlauf (1T/1W) bei jedem Zeichnen gleich aussieht
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
 
 const nf = (d) => new Intl.NumberFormat("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
 const nf0 = nf(0), nf1 = nf(1), nf2 = nf(2);
 const fmtEUR = x => nf2.format(x) + " €";
+const fmtEUR0 = x => nf0.format(x) + " €";
 const fmtPct = (x, d = 1) => (x >= 0 ? "+" : "") + nf(d).format(x * 100) + " %";
 const fmtMrd = x => (Math.abs(x) < 10 ? nf2 : nf1).format(x) + " Mrd. €";
+const fmtPrice = v => nf(v < 10 ? 2 : v < 1000 ? 1 : 0).format(v);
 
 /* =========================================================
    Firmen (Startwerte – alles simuliert)
@@ -465,7 +596,7 @@ const COMPANY_DEFS = [
     revenue: 2.5, margin: -.05, mTarget: .06, mSpeed: .008, growth: .35, gTarget: .12, debt: 2, shares: .1,
     vol: .082, beta: 1.4, newsMult: 1.6, volType: "wild" },
   { id: "knusper", name: "KnusperKorn", sector: "Müsli & Frühstück", icon: "🥣", color: "#c08bff", real: false,
-    revenue: 45, margin: .09, mTarget: .09, growth: .03, gTarget: .03, debt: 18, shares: .8,
+    revenue: 45, margin: .09, mTarget: .09, growth: .03, gTarget: .03, debt: 12, shares: .8,
     vol: .018, beta: .6, newsMult: .7, volType: "ruhig" },
 ];
 const VOL_LABEL = { ruhig: "🌊 schwankt ruhig", mittel: "〰️ schwankt mittel", wild: "🎢 schwankt stark" };
@@ -520,15 +651,27 @@ const MARKET_EVENTS = [
 ];
 
 /* =========================================================
-   Markt-Engine
+   Markt-Engine – simuliert jeden Handelstag einzeln
+   (5 Handelstage = 1 Woche)
    ========================================================= */
-const PULL = 0.04;       // wie stark der Kurs pro Woche zum Kennzahlen-Wert gezogen wird
-const MARKET_VOL = 0.012; // gemeinsame Schwankung aller Aktien
-const P_MARKET_EVENT = 0.08;
-const P_COMPANY_EVENT = 0.07;
-const PREHISTORY = 52;   // Wochen Vorgeschichte, damit die Charts nicht leer sind
+const DAYS = 5;                    // Handelstage pro Woche
+const SQRT_DAYS = Math.sqrt(DAYS);
+const YEAR_DAYS = 52 * DAYS;
+const PREHISTORY = YEAR_DAYS;      // ein Jahr Vorgeschichte, damit die Charts nicht leer sind
+const MAX_HISTORY = 12 * YEAR_DAYS;
+const PULL_D = 0.006;              // Grund-Zug zum Kennzahlen-Wert pro Tag
+const PULL_BY_WEAK = [1.6, 1.0, 0.7, 0.5]; // solide Firmen werden stärker zurückgezogen
+const MARKET_VOL_D = 0.007;        // gemeinsame Schwankung aller Aktien pro Tag
+const TREND_MIN = 2, TREND_MAX = 6; // Dauer eines Kurz-Trends in Tagen
+const TREND_SIZE = 0.35;           // Stärke eines Kurz-Trends (im Verhältnis zur Tages-Schwankung)
+const MOOD_BACK = 0.08;            // so schnell läuft ein Kurz-Trend danach wieder zurück (pro Tag)
+const FAIL_P = 0.06;               // Kippen eines Musters pro Tag und Schwäche-Punkt
+const WEAK_VOL = 0.15;             // zusätzliche Schwankung pro Schwäche-Punkt
+const P_MARKET_EVENT = 0.016;      // pro Tag
+const P_COMPANY_EVENT = 0.014;     // pro Tag und Firma
+const QUARTER = 13 * DAYS;
 
-let S; // Spielzustand (wird in v0.2 noch nicht gespeichert)
+let S; // Spielzustand
 
 function profit(c) { return c.revenue * c.margin - c.debt * S.rate; }
 function eps(c) { return profit(c) / c.shares; }
@@ -545,14 +688,32 @@ function fairValue(c) {
 }
 function price(c) { return Math.exp(c.logP); }
 
+// Schwache Kennzahlen: Verlust, hohe Schulden, KGV zu hoch (bzw. Kurs weit über dem Kennzahlen-Wert)
+function weakness(c, pr = price(c)) {
+  const p = profit(c), e = eps(c), fv = fairValue(c);
+  const loss = p < 0;
+  const debt = p > 0 ? c.debt / p > 4 : c.debt > c.revenue * 0.5;
+  const kgv = e > 0 ? (pr / e > 60 || pr > fv * 1.3) : pr > fv * 1.3;
+  return { loss, debt, kgv, count: (loss ? 1 : 0) + (debt ? 1 : 0) + (kgv ? 1 : 0) };
+}
+// Rendite über die letzten n Handelstage
+function changeDays(c, n) {
+  const h = c.hp, i = h.length - 1;
+  return h[i] / h[Math.max(0, i - n)] - 1;
+}
+// „Das Chart-Muster sieht gut aus“: der Kurs steigt seit ein paar Wochen deutlich
+function chartRising(c) { return changeDays(c, 20) >= 0.06 || changeDays(c, 10) >= 0.05; }
+function patternWarning(c) { return chartRising(c) && weakness(c).count > 0; }
+
 function newGame() {
-  S = { week: -PREHISTORY, rate: 0.04, companies: [], news: [], thisWeek: [] };
+  S = { v: 3, day: -PREHISTORY, t0: -PREHISTORY + 1, rate: 0.04, companies: [], news: [], thisWeek: [],
+        nextNews: 1, seed: Math.floor(rand() * 2 ** 31) };
   COMPANY_DEFS.forEach((d, i) => {
-    const c = { ...d, history: [], pendingShock: 0, reportOffset: 2 + i * 2, lastRevenue: d.revenue };
+    const c = { ...d, hp: [], hf: [], shock: 0, trend: 0, tLeft: 0, mood: 0, reportOffset: 2 + i * 2, lastRevenue: d.revenue };
     c.logP = Math.log(fairValue(c) * (0.85 + rand() * 0.3));
     S.companies.push(c);
   });
-  for (let i = 0; i < PREHISTORY; i++) step(true);
+  while (S.day < 0) simDay();
   S.startPrices = Object.fromEntries(S.companies.map(c => [c.id, price(c)]));
   S.thisWeek = [];
   S.depots = { trader: newDepot(), investor: newDepot() };
@@ -562,22 +723,21 @@ function applyEvent(ev, targets, textName) {
   const text = ev.t.replace("{n}", textName || "");
   const strength = 0.7 + rand() * 0.6;
   targets.forEach(c => {
-    c.pendingShock += ev.shock * strength * c.newsMult;
+    c.shock += ev.shock * strength * c.newsMult;
     if (ev.eff) {
       if (ev.eff.growth) c.growth += ev.eff.growth;
       if (ev.eff.margin) c.margin += ev.eff.margin;
       if (ev.eff.debtPct) c.debt += c.revenue * ev.eff.debtPct;
     }
-    c.eventThisWeek = true;
   });
   if (ev.rate) S.rate = clamp(S.rate + ev.rate, 0.01, 0.08);
   return { text, kind: ev.kind, dir: Math.sign(ev.shock), ids: targets.map(c => c.id) };
 }
 
-function step(silent) {
-  S.week++;
-  const events = [];
-  S.companies.forEach(c => { c.pendingShock = 0; c.eventThisWeek = false; });
+function simDay() {
+  S.day++;
+  const t = S.day, events = [];
+  S.companies.forEach(c => { c.shock = 0; });
 
   // 1) Markt-News
   if (rand() < P_MARKET_EVENT) {
@@ -599,13 +759,12 @@ function step(silent) {
 
   // 3) Quartalszahlen (alle 13 Wochen, je Firma versetzt)
   S.companies.forEach(c => {
-    if (((S.week + c.reportOffset) % 13 + 13) % 13 === 0) {
+    if (((t + c.reportOffset * DAYS) % QUARTER + QUARTER) % QUARTER === 0) {
       const surprise = randn() * 0.05;
       const yoy = Math.pow(c.revenue / c.lastRevenue, 4) - 1; // aufs Jahr hochgerechnet
       c.lastRevenue = c.revenue;
       c.growth += surprise * 0.2;
-      c.pendingShock += surprise * c.newsMult;
-      c.eventThisWeek = true;
+      c.shock += surprise * c.newsMult;
       const how = surprise > 0.03 ? "besser als erwartet 🚀" : surprise < -0.03 ? "schlechter als erwartet 😬" : "ungefähr wie erwartet";
       const p = profit(c);
       events.push({
@@ -617,33 +776,62 @@ function step(silent) {
 
   // 4) Kennzahlen entwickeln sich langsam weiter
   S.companies.forEach(c => {
-    c.growth += (c.gTarget - c.growth) * 0.01 + randn() * 0.002;
-    c.margin += (c.mTarget - c.margin) * (c.mSpeed || 0.02) + randn() * 0.002;
+    c.growth += (c.gTarget - c.growth) * 0.002 + randn() * 0.0009;
+    c.margin += (c.mTarget - c.margin) * (c.mSpeed || 0.02) / DAYS + randn() * 0.0009;
     c.growth = clamp(c.growth, -0.15, 0.8);
     c.margin = clamp(c.margin, -0.3, 0.6);
-    c.revenue *= Math.exp(c.growth / 52 + randn() * 0.003);
+    c.revenue *= Math.exp(c.growth / YEAR_DAYS + randn() * 0.0013);
     const p = profit(c);
-    if (p < 0) c.debt += -p / 52;                   // Verluste werden mit Schulden bezahlt
-    else c.debt = Math.max(0, c.debt - p / 52 * 0.2); // ein Teil des Gewinns tilgt Schulden
+    if (p < 0) c.debt += -p / YEAR_DAYS;                    // Verluste werden mit Schulden bezahlt
+    else c.debt = Math.max(0, c.debt - p / YEAR_DAYS * 0.2); // ein Teil des Gewinns tilgt Schulden
   });
 
-  // 5) Kurse: Zug zum Kennzahlen-Wert + Zufall + News
-  const market = randn() * MARKET_VOL;
+  // 5) Kurse: Zug zum Kennzahlen-Wert + Kurz-Trend + Zufall + News
+  const market = randn() * MARKET_VOL_D;
   S.companies.forEach(c => {
-    const fv = fairValue(c);
-    c.logP += PULL * (Math.log(fv) - c.logP) + c.beta * market + c.vol * randn() + c.pendingShock;
+    const fv = fairValue(c), weak = weakness(c).count, sd = c.vol / SQRT_DAYS * (1 + WEAK_VOL * weak);
+    // Kurz-Trends: kurz, zufällige Richtung, zufällige Länge – schwer vorherzusagen
+    if (--c.tLeft <= 0) {
+      c.tLeft = TREND_MIN + Math.floor(rand() * (TREND_MAX - TREND_MIN + 1));
+      c.trend = randn() * TREND_SIZE * sd;
+    }
+    // Bei schwachen Kennzahlen kippen Muster besonders oft („Fehlausbruch“)
+    if (weak > 0 && rand() < FAIL_P * weak) {
+      c.trend = -c.trend * (0.6 + rand() * 0.8);
+      c.tLeft = 2 + Math.floor(rand() * 3);
+    }
+    // Was ein Kurz-Trend aufbaut („Stimmung“), läuft danach zum Teil wieder zurück
+    const dMood = c.trend - MOOD_BACK * c.mood;
+    c.mood += dMood;
+    const pull = PULL_D * PULL_BY_WEAK[weak];
+    c.logP += pull * (Math.log(fv) - c.logP) + c.beta * market + dMood + sd * randn() + c.shock;
     c.logP = Math.max(c.logP, Math.log(0.5));
-    c.history.push({ w: S.week, p: price(c), f: fv, ev: c.eventThisWeek });
-    if (c.history.length > 520) c.history.shift();
+    c.hp.push(round6(price(c)));
+    c.hf.push(round6(fv));
   });
-
-  if (!silent) {
-    events.forEach(e => e.week = S.week);
-    S.thisWeek = events;
-    S.news.unshift(...events);
-    if (S.news.length > 200) S.news.length = 200;
+  if (S.companies[0].hp.length > MAX_HISTORY) {
+    S.companies.forEach(c => { c.hp.shift(); c.hf.shift(); });
+    S.t0++;
   }
+
+  events.forEach(e => { e.day = t; e.id = S.nextNews++; });
+  S.news.unshift(...events);
+  if (S.news.length > 500) S.news.length = 500;
+  if (S.depots) Object.values(S.depots).forEach(trackRisk);
+  return events;
 }
+
+function simWeek() {
+  const events = [];
+  for (let i = 0; i < DAYS; i++) events.push(...simDay());
+  S.thisWeek = events;
+  if (S.depots) Object.values(S.depots).forEach(d => d.curve.push(Math.round(depotValue(d))));
+}
+const weekNo = () => Math.floor(S.day / DAYS);
+const dayWeek = t => Math.ceil(t / DAYS);
+const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr"];
+const dayName = t => DAY_NAMES[((t - 1) % DAYS + DAYS) % DAYS];
+const dayLabel = t => dayWeek(t) < 0 ? `${dayName(t)}, ${-dayWeek(t)} Wochen vor dem Start` : `${dayName(t)}, Woche ${dayWeek(t)}`;
 
 /* =========================================================
    Depots: Trader gegen Investor
@@ -660,11 +848,23 @@ const DEPOTS = {
 };
 const BUCKET = { lang: "🌳 Langfristig", trade: "⚡ Kurz-Trade" };
 
-function newDepot() { return { cash: START_CASH, pos: {}, trades: 0 }; }
+function newDepot() {
+  return { cash: START_CASH, pos: {}, trades: 0, hi: START_CASH, lo: START_CASH, peak: START_CASH, maxDD: 0, curve: [START_CASH] };
+}
 function company(id) { return S.companies.find(c => c.id === id); }
 function getPos(d, id, bucket) { return d.pos[id + ":" + bucket] || { id, bucket, qty: 0, cost: 0 }; }
 function stockValue(d) { return Object.values(d.pos).reduce((s, p) => s + p.qty * price(company(p.id)), 0); }
 function depotValue(d) { return d.cash + stockValue(d); }
+// Risiko: höchster Stand, tiefster Stand, größter Rückgang vom Höchststand – geprüft an jedem Handelstag
+function trackRisk(d) {
+  const v = depotValue(d);
+  d.hi = Math.max(d.hi, v);
+  d.lo = Math.min(d.lo, v);
+  d.peak = Math.max(d.peak, v);
+  d.maxDD = Math.max(d.maxDD, 1 - v / d.peak);
+}
+/* ===== ENGINE END ===== */
+
 function bucketFor(depotKey) { return depotKey === "trader" ? "trade" : UI.mode; }
 
 function doBuy(depotKey, c, qty, bucket) {
@@ -754,6 +954,49 @@ function trySell(depotKey, c, qty, bucket) {
 }
 
 /* =========================================================
+   Speichern (localStorage) – funktioniert auch ohne, z. B. im privaten Fenster
+   ========================================================= */
+const SAVE_KEY = "boersenDuell.v3";
+let saveWorks = true;
+function save() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 3, S,
+      ui: { depot: UI.depot, mode: UI.mode, qty: UI.qty, exp: !document.body.classList.contains("no-exp"), range: DV.range },
+    }));
+    if (!saveWorks) { saveWorks = true; renderSaveInfo(); }
+  } catch (e) {
+    if (saveWorks) { saveWorks = false; renderSaveInfo(); }
+  }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    const s = data && data.S;
+    if (data.v !== 3 || !s || !Array.isArray(s.companies) || s.companies.length !== COMPANY_DEFS.length
+        || !s.depots || !s.companies.every(c => Array.isArray(c.hp) && c.hp.length > DAYS)) return false;
+    S = s;
+    const ui = data.ui || {};
+    if (ui.depot in DEPOTS) UI.depot = ui.depot;
+    if (ui.mode in BUCKET) UI.mode = ui.mode;
+    if (ui.qty && typeof ui.qty === "object") UI.qty = ui.qty;
+    if (ui.exp === false) document.body.classList.add("no-exp");
+    if (RANGES[ui.range]) DV.range = ui.range;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* nichts zu tun */ } }
+function renderSaveInfo() {
+  document.getElementById("saveInfo").textContent = saveWorks
+    ? "💾 Spielstand wird automatisch in diesem Browser gespeichert."
+    : "💾 Speichern ist in diesem Browser gerade nicht möglich (z. B. privates Fenster) – das Spiel läuft trotzdem.";
+}
+
+/* =========================================================
    Darstellung
    ========================================================= */
 const UI = { depot: "trader", mode: "lang", qty: {} };
@@ -763,9 +1006,54 @@ const EXPLAIN = {
   schulden: "Geliehenes Geld. Ein bisschen ist okay – zu viel ist gefährlich, weil Zinsen den Gewinn auffressen.",
   kgv: "Kurs-Gewinn-Verhältnis: Wie viele Jahre Gewinn du für die Aktie bezahlst. Hoch = teuer oder alle erwarten viel Wachstum.",
 };
+const KIND = {
+  stimmung:   { icon: "💬", label: "Stimmung", color: "#ff8be3",
+                why: "Stimmungs-News verändern nur die Laune der Anleger. Der Effekt verpufft meist wieder – die Firma ist danach nicht mehr oder weniger wert." },
+  kennzahlen: { icon: "📊", label: "Kennzahlen", color: "#00e5ff",
+                why: "Kennzahlen-News verändern Umsatz, Gewinn, Wachstum oder Schulden – und damit den Wert der Firma dauerhaft. Schau, ob sich die weiße Linie bewegt." },
+  zahlen:     { icon: "📋", label: "Quartalszahlen", color: "#ffcc00",
+                why: "Quartalszahlen: Die Firma zeigt, wie es wirklich läuft. Überraschungen bewegen den Kurs – und oft auch den Kennzahlen-Wert." },
+};
 
 const grid = document.getElementById("grid");
 const cardEls = {};
+
+function tradePanelHTML() {
+  return `
+    <div class="trade-row">
+      <div class="seg" role="group" aria-label="Depot wählen">
+        <button data-depot="trader">⚡ Trader</button><button data-depot="investor">🌳 Investor</button>
+      </div>
+      <div class="own" data-k="own"></div>
+    </div>
+    <div class="trade-row" data-k="modeRow">
+      <div class="seg" role="group" aria-label="Art des Kaufs">
+        <button data-mode="lang">🌳 Langfristig</button><button data-mode="trade">⚡ Kurz-Trade</button>
+      </div>
+      <div class="zone-meter" data-k="zone"></div>
+    </div>
+    <div class="trade-row">
+      <div class="stepper">
+        <button data-act="minus" aria-label="Eine Aktie weniger">−</button>
+        <span class="q" data-k="qty"></span>
+        <button data-act="plus" aria-label="Eine Aktie mehr">+</button>
+        <button class="wide" data-act="plus10">+10</button>
+      </div>
+      <div class="cost" data-k="cost"></div>
+    </div>
+    <div class="trade-row btns">
+      <button class="btn btn-buy" data-act="buy">Kaufen</button>
+      <button class="btn btn-sell" data-act="sell">Verkaufen</button>
+    </div>`;
+}
+
+function legendHTML(c) {
+  return `<span><i style="background:${c.color}"></i>Kurs</span>
+    <span><i class="fair"></i>Wert laut Kennzahlen</span>
+    <span><i class="zone pricey"></i>teuer</span>
+    <span><i class="zone cheap"></i>günstig</span>
+    <span>💬 📊 📋 News (antippen)</span>`;
+}
 
 function buildCards() {
   grid.innerHTML = "";
@@ -774,9 +1062,8 @@ function buildCards() {
     el.className = "card";
     el.dataset.id = c.id;
     el.style.setProperty("--c", c.color);
-    const approx = c.real ? "≈ " : "";
     el.innerHTML = `
-      <div class="card-head">
+      <div class="card-head" data-act="open" title="Großen Chart öffnen">
         <div class="icon" aria-hidden="true">${c.icon}</div>
         <div>
           <div class="name">${c.name}<span class="badge">${c.real ? "simuliert" : "erfunden"}</span></div>
@@ -789,78 +1076,80 @@ function buildCards() {
           <div class="chg" data-k="chgStart" style="font-size:12px"></div>
         </div>
       </div>
-      <div class="chart-box"><canvas class="chart" aria-label="Kursverlauf ${c.name}"></canvas></div>
-      <div class="chart-legend">
-        <span><i style="background:${c.color}"></i>Kurs</span>
-        <span><i class="dash"></i>Wert laut Kennzahlen</span>
-        <span><i class="dot"></i>News</span>
+      <button class="warn-badge" data-act="warn" data-k="warn" hidden>⚠️ Vorsicht: Muster gut, Zahlen schwach <small>antippen</small></button>
+      <div class="chart-box">
+        <canvas class="chart" aria-label="Kursverlauf ${c.name} – antippen für großen Chart"></canvas>
+        <button class="zoom-btn" data-act="open">🔍 Großer Chart</button>
       </div>
-      <div class="trade">
-        <div class="trade-row">
-          <div class="seg" role="group" aria-label="Depot wählen">
-            <button data-depot="trader">⚡ Trader</button><button data-depot="investor">🌳 Investor</button>
-          </div>
-          <div class="own" data-k="own"></div>
-        </div>
-        <div class="trade-row" data-k="modeRow">
-          <div class="seg" role="group" aria-label="Art des Kaufs">
-            <button data-mode="lang">🌳 Langfristig</button><button data-mode="trade">⚡ Kurz-Trade</button>
-          </div>
-          <div class="zone-meter" data-k="zone"></div>
-        </div>
-        <div class="trade-row">
-          <div class="stepper">
-            <button data-act="minus" aria-label="Eine Aktie weniger">−</button>
-            <span class="q" data-k="qty"></span>
-            <button data-act="plus" aria-label="Eine Aktie mehr">+</button>
-            <button class="wide" data-act="plus10">+10</button>
-          </div>
-          <div class="cost" data-k="cost"></div>
-        </div>
-        <div class="trade-row btns">
-          <button class="btn btn-buy" data-act="buy">Kaufen</button>
-          <button class="btn btn-sell" data-act="sell">Verkaufen</button>
-        </div>
-      </div>
-      <div class="metrics">
-        ${c.real ? `<div class="approx">≈ <b>Ungefähre Werte</b> – grob an der echten Firma orientiert, stark vereinfacht und im Spiel simuliert weiterentwickelt.</div>` : ""}
-        <div class="metric"><div class="lbl">Umsatz / Jahr</div><div class="val" data-k="umsatz"></div><div class="sub" data-k="wachstum"></div><div class="exp">${EXPLAIN.umsatz}</div></div>
-        <div class="metric"><div class="lbl">Gewinn / Jahr</div><div class="val" data-k="gewinn"></div><div class="sub" data-k="marge"></div><div class="exp">${EXPLAIN.gewinn}</div></div>
-        <div class="metric"><div class="lbl">Schulden</div><div class="val" data-k="schulden"></div><div class="sub" data-k="zinsen"></div><div class="exp">${EXPLAIN.schulden}</div></div>
-        <div class="metric"><div class="lbl">KGV</div><div class="val" data-k="kgv"></div><div class="sub" data-k="kgvsub"></div><div class="exp">${EXPLAIN.kgv}</div></div>
-      </div>
-      <div class="verdict" data-k="verdict"></div>`;
+      <div class="chart-legend">${legendHTML(c)}</div>
+      <div data-k="gauge"></div>
+      <div class="trade">${tradePanelHTML()}</div>
+      <div class="metrics" data-k="metrics"></div>`;
     grid.appendChild(el);
     const q = k => el.querySelector(`[data-k="${k}"]`);
-    cardEls[c.id] = { el, canvas: el.querySelector("canvas"), q, approx };
+    const canvas = el.querySelector("canvas");
+    cardEls[c.id] = { el, canvas, q, hits: [] };
+    canvas.addEventListener("click", e => {
+      const r = canvas.getBoundingClientRect();
+      const hit = hitTest(cardEls[c.id].hits, e.clientX - r.left, e.clientY - r.top);
+      if (hit) showNews(c, hit.news);
+      else openDetail(c.id);
+    });
   });
 }
 
-function verdictText(c) {
+/* ---------- Kennzahlen als Bild: Bewertungs-Balken, Ampel-Kacheln, Chips ---------- */
+function gaugeHTML(c) {
   const diff = price(c) / fairValue(c) - 1;
-  let s;
-  if (diff > 0.15) s = `🔥 Der Kurs liegt <b>${nf0.format(diff * 100)} % über</b> dem Kennzahlen-Wert – die Aktie ist gerade eher teuer.`;
-  else if (diff < -0.15) s = `🧊 Der Kurs liegt <b>${nf0.format(-diff * 100)} % unter</b> dem Kennzahlen-Wert – die Aktie ist gerade eher günstig.`;
-  else s = `⚖️ Kurs und Kennzahlen-Wert liegen nah beieinander – <b>fair bewertet</b>.`;
-  const notes = [];
-  const p = profit(c);
-  if (p < 0) notes.push("Die Firma macht noch Verlust.");
-  if (c.growth > 0.25) notes.push("Sie wächst sehr schnell.");
-  else if (c.growth < 0.02) notes.push("Sie wächst kaum.");
-  if (p > 0 && c.debt / p > 4) notes.push("Die Schulden sind hoch im Vergleich zum Gewinn.");
-  if (p <= 0 && c.debt > c.revenue * 0.8) notes.push("Die Schulden wachsen bedrohlich.");
-  return s + (notes.length ? " " + notes.join(" ") : "");
+  const w = weakness(c), p = profit(c);
+  const label = diff > 0.15 ? "eher teuer" : diff < -0.15 ? "eher günstig" : "fair bewertet";
+  const color = diff > 0.15 ? "var(--pricey)" : diff < -0.15 ? "var(--cheap)" : "#fff";
+  const pos = 50 + clamp(diff, -0.5, 0.5) * 100;
+  const chips = [];
+  if (w.loss) chips.push(`<span class="chip bad">📉 Verlust</span>`);
+  if (w.debt) chips.push(`<span class="chip bad">🏦 hohe Schulden</span>`);
+  if (w.kgv) chips.push(`<span class="chip bad">🔥 KGV zu hoch</span>`);
+  if (!w.count) chips.push(`<span class="chip good">✅ solide Zahlen</span>`);
+  if (c.growth > 0.25) chips.push(`<span class="chip good">🚀 wächst schnell</span>`);
+  else if (c.growth < 0.02) chips.push(`<span class="chip">🐢 wächst kaum</span>`);
+  if (p > 0 && p / c.revenue > 0.2) chips.push(`<span class="chip good">💰 hohe Gewinnmarge</span>`);
+  return `<div class="gauge">
+      <div class="g-top"><span>Kurs vs. Kennzahlen-Wert</span><b style="color:${color}">${label} (${fmtPct(diff, 0)})</b></div>
+      <div class="g-bar"><i class="g-mark" style="left:${pos}%; --c:${color}"></i></div>
+      <div class="g-scale"><span class="c">◀ günstig</span><span>fair</span><span class="p">teuer ▶</span></div>
+      <div class="chips">${chips.join("")}</div>
+    </div>`;
+}
+
+function metricsHTML(c) {
+  const p = profit(c), e = eps(c), w = weakness(c), ap = c.real ? "≈ " : "", now = price(c);
+  const tile = (cls, lbl, val, valCls, sub, exp) => `<div class="metric ${cls}">
+      <div class="lbl"><span>${lbl}</span><span>${cls === "good" ? "✅" : cls === "bad" ? "⚠️" : ""}</span></div>
+      <div class="val ${valCls}">${val}</div><div class="sub">${sub}</div><div class="exp">${exp}</div></div>`;
+  let kgvVal = "–", kgvSub = "kein Gewinn, kein KGV", kgvCls = "";
+  if (e > 0) {
+    const kgv = now / e;
+    kgvVal = ap + nf1.format(kgv);
+    kgvSub = kgv > 35 ? "sehr hoch" : kgv > 20 ? "eher hoch" : kgv > 10 ? "normal" : "niedrig";
+    kgvCls = w.kgv ? "bad" : "good";
+  }
+  return (c.real ? `<div class="approx">≈ <b>Ungefähre Werte</b> – grob an der echten Firma orientiert, stark vereinfacht und im Spiel simuliert weiterentwickelt.</div>` : "")
+    + tile(c.growth > 0.08 ? "good" : c.growth < 0.02 ? "bad" : "", "Umsatz / Jahr", ap + fmtMrd(c.revenue), "",
+        `Wachstum <span class="${c.growth >= 0 ? "up" : "down"}">${fmtPct(c.growth)}</span> pro Jahr`, EXPLAIN.umsatz)
+    + tile(w.loss ? "bad" : "good", "Gewinn / Jahr", ap + fmtMrd(p), p >= 0 ? "up" : "down",
+        `Von 100 € Umsatz bleiben ${nf0.format(Math.max(-99, (p / c.revenue) * 100))} €`, EXPLAIN.gewinn)
+    + tile(w.debt ? "bad" : "good", "Schulden", ap + fmtMrd(c.debt), "",
+        `Zinsen: ${fmtMrd(c.debt * S.rate)} pro Jahr`, EXPLAIN.schulden)
+    + tile(kgvCls, "KGV", kgvVal, "", kgvSub, EXPLAIN.kgv);
 }
 
 function render(animate) {
-  document.getElementById("week").textContent = S.week;
+  document.getElementById("week").textContent = weekNo();
   document.getElementById("rate").textContent = nf1.format(S.rate * 100) + " %";
 
   S.companies.forEach(c => {
     const { q, canvas } = cardEls[c.id];
-    const h = c.history;
-    const now = h[h.length - 1].p, prev = h[h.length - 2] ? h[h.length - 2].p : now;
-    const wk = now / prev - 1, since = now / S.startPrices[c.id] - 1;
+    const now = price(c), wk = changeDays(c, DAYS), since = now / S.startPrices[c.id] - 1;
     const priceEl = q("price");
     priceEl.textContent = fmtEUR(now);
     if (animate) {
@@ -872,40 +1161,34 @@ function render(animate) {
     q("chg").className = "chg " + (wk >= 0 ? "up" : "down");
     q("chgStart").textContent = fmtPct(since) + " seit Start";
     q("chgStart").className = "chg " + (since >= 0 ? "up" : "down");
-
-    const p = profit(c), e = eps(c), ap = cardEls[c.id].approx;
-    q("umsatz").textContent = ap + fmtMrd(c.revenue);
-    q("wachstum").innerHTML = `Wachstum <span class="${c.growth >= 0 ? "up" : "down"}">${fmtPct(c.growth)}</span> pro Jahr`;
-    q("gewinn").textContent = ap + fmtMrd(p);
-    q("gewinn").className = "val " + (p >= 0 ? "up" : "down");
-    q("marge").textContent = `Von 100 € Umsatz bleiben ${nf0.format(Math.max(-99, (p / c.revenue) * 100))} €`;
-    q("schulden").textContent = ap + fmtMrd(c.debt);
-    q("zinsen").textContent = `Zinsen: ${fmtMrd(c.debt * S.rate)} pro Jahr`;
-    if (e > 0) {
-      const kgv = now / e;
-      q("kgv").textContent = ap + nf1.format(kgv);
-      q("kgvsub").textContent = kgv > 35 ? "sehr hoch" : kgv > 20 ? "eher hoch" : kgv > 10 ? "normal" : "niedrig";
-    } else {
-      q("kgv").textContent = "–";
-      q("kgvsub").textContent = "kein Gewinn, kein KGV";
-    }
-    q("verdict").innerHTML = verdictText(c);
-    drawChart(canvas, c);
+    q("warn").hidden = !patternWarning(c);
+    q("gauge").innerHTML = gaugeHTML(c);
+    q("metrics").innerHTML = metricsHTML(c);
+    drawCardChart(c);
   });
 
   renderNews();
   renderTrading();
+  if (DV.id) renderDetail(true);
+}
+
+function drawCardChart(c) {
+  const s = dailySeries(c), n = s.pts.length;
+  cardEls[c.id].hits = drawChart(cardEls[c.id].canvas, c, s, Math.max(0, n - 1 - YEAR_DAYS), n - 1, { compact: true }).hits;
 }
 
 // alles, was sich nach einem Kauf/Verkauf ändert
 function renderTrading() {
-  S.companies.forEach(renderTradePanel);
+  S.companies.forEach(renderTradePanels);
   renderDepots();
   renderDuel();
 }
+function renderTradePanels(c) {
+  renderTradePanel(c, cardEls[c.id].el, cardEls[c.id].q);
+  if (DV.id === c.id) renderTradePanel(c, dTrade, k => dTrade.querySelector(`[data-k="${k}"]`));
+}
 
-function renderTradePanel(c) {
-  const { q, el } = cardEls[c.id];
+function renderTradePanel(c, el, q) {
   const d = S.depots[UI.depot], p = price(c);
   const qty = UI.qty[c.id] || 1;
   el.querySelectorAll("[data-depot]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.depot === UI.depot)));
@@ -929,11 +1212,25 @@ function renderTradePanel(c) {
   }
 }
 
+function sparkSVG(curve, color) {
+  const n = curve.length;
+  if (n < 2) return "";
+  let lo = Math.min(...curve, START_CASH), hi = Math.max(...curve, START_CASH);
+  if (hi - lo < 1) { hi += 1; lo -= 1; }
+  const X = i => (i / (n - 1)) * 100, Y = v => 28 - ((v - lo) / (hi - lo)) * 26;
+  const pts = curve.map((v, i) => `${X(i).toFixed(2)},${Y(v).toFixed(2)}`).join(" ");
+  return `<svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-label="Verlauf des Depotwerts">
+      <line x1="0" x2="100" y1="${Y(START_CASH)}" y2="${Y(START_CASH)}" stroke="rgba(255,255,255,.3)" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    </svg>`;
+}
+
 function renderDepots() {
   const wrap = document.getElementById("depots");
   wrap.innerHTML = Object.keys(DEPOTS).map(key => {
     const meta = DEPOTS[key], d = S.depots[key];
     const total = depotValue(d), res = total - START_CASH;
+    const curDD = 1 - total / d.peak;
     const rows = [];
     S.companies.forEach(c => ["lang", "trade"].forEach(b => {
       const pos = d.pos[c.id + ":" + b];
@@ -961,6 +1258,16 @@ function renderDepots() {
         <div class="stat total"><div class="lbl">Gesamtwert</div><div class="val">${fmtEUR(total)}</div></div>
       </div>
       <div class="result-line ${res >= 0 ? "up" : "down"}">Ergebnis seit Start: ${res >= 0 ? "+" : ""}${fmtEUR(res)} (${fmtPct(res / START_CASH)}) · ${d.trades} Käufe/Verkäufe</div>
+      <div class="risk">
+        <h3>📊 Risiko dieses Depots</h3>
+        <div class="stats">
+          <div class="stat"><div class="lbl">⬆ Höchster Stand</div><div class="val up">${fmtEUR0(d.hi)}</div></div>
+          <div class="stat"><div class="lbl">⬇ Tiefster Stand</div><div class="val down">${fmtEUR0(d.lo)}</div></div>
+          <div class="stat dd"><div class="lbl">📉 Größter Rückgang</div><div class="val">${d.maxDD > 0.0005 ? "−" + nf1.format(d.maxDD * 100) : "0,0"} %</div></div>
+        </div>
+        ${sparkSVG(d.curve, meta.color)}
+        <div class="exp">Größter Rückgang = so weit ist das Depot einmal von seinem höchsten Stand gefallen. ${curDD > 0.005 ? `Gerade liegt es <b>${nf1.format(curDD * 100)} %</b> unter dem Höchststand.` : "Gerade steht es auf seinem Höchststand."} Großer Rückgang = großes Risiko.</div>
+      </div>
       <div class="positions">
         ${rows.length
           ? `<div class="pos-row head"><span>Firma</span><span class="num">Stück</span><span class="num">Wert</span><span class="num">Gewinn</span></div>` + rows.join("")
@@ -991,180 +1298,17 @@ function renderDuel() {
   }
 }
 
-function setDepot(key) { UI.depot = key; renderTrading(); }
-function setMode(mode) { UI.mode = mode; S.companies.forEach(renderTradePanel); }
+function setDepot(key) { UI.depot = key; renderTrading(); save(); }
+function setMode(mode) { UI.mode = mode; S.companies.forEach(renderTradePanels); save(); }
 
 function afterTrade(msg) {
   renderTrading();
   toast(msg);
+  save();
 }
 
-/* ---------- freundlicher Hinweis-Dialog ---------- */
-const overlay = document.getElementById("overlay");
-function showInfo({ icon, title, html, actions = [] }) {
-  document.getElementById("mIcon").textContent = icon;
-  document.getElementById("mTitle").textContent = title;
-  document.getElementById("mBody").innerHTML = html;
-  const box = document.getElementById("mActions");
-  box.innerHTML = "";
-  [...actions, { label: "Alles klar 👍", cls: "btn-primary" }].forEach(a => {
-    const b = document.createElement("button");
-    b.className = "btn " + a.cls;
-    b.textContent = a.label;
-    b.addEventListener("click", () => { closeInfo(); if (a.fn) a.fn(); });
-    box.appendChild(b);
-  });
-  overlay.hidden = false;
-  box.firstChild.focus();
-}
-function closeInfo() { overlay.hidden = true; }
-overlay.addEventListener("click", e => { if (e.target === overlay) closeInfo(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !overlay.hidden) closeInfo(); });
-
-let toastTimer;
-function toast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
-}
-
-function renderNews() {
-  const now = document.getElementById("newsNow");
-  const old = document.getElementById("newsOld");
-  const title = document.getElementById("newsTitle");
-  title.textContent = "📰 News dieser Woche";
-  const li = (n, showWeek) => `<li class="${n.dir > 0 ? "pos" : n.dir < 0 ? "neg" : ""}">
-      ${showWeek ? `<span class="wk">W${n.week}</span>` : ""}<span class="tag ${n.kind}">${n.kind === "zahlen" ? "Quartalszahlen" : n.kind === "stimmung" ? "Stimmung" : "Kennzahlen"}</span>
-      <span>${n.text}</span></li>`;
-  if (S.week === 0) {
-    now.innerHTML = `<li class="empty">Der Markt ist bereit. Tippe auf <b>„Nächste Woche ▶“</b> und schau, was passiert!</li>`;
-  } else if (!S.thisWeek.length) {
-    now.innerHTML = `<li class="empty">Ruhige Woche – keine besonderen News. Die Kurse bewegen sich nur durch Zufall und die Kennzahlen.</li>`;
-  } else {
-    const multi = S.thisWeek.some(n => n.week !== S.week);
-    title.textContent = multi ? "📰 News der letzten 10 Wochen" : "📰 News dieser Woche";
-    now.innerHTML = S.thisWeek.map(n => li(n, multi)).join("");
-  }
-  const older = S.news.filter(n => !S.thisWeek.includes(n)).slice(0, 60);
-  old.innerHTML = older.length
-    ? older.map(n => li(n, true)).join("")
-    : `<li class="empty">Noch keine älteren News.</li>`;
-}
-
-function drawChart(canvas, c) {
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.clientWidth, H = canvas.clientHeight;
-  if (!W || !H) return;
-  canvas.width = Math.round(W * dpr);
-  canvas.height = Math.round(H * dpr);
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-
-  const data = c.history.slice(-104);
-  const padL = 6, padR = 58, padT = 10, padB = 18;
-  let lo = Infinity, hi = -Infinity;
-  data.forEach(d => { lo = Math.min(lo, d.p, d.f); hi = Math.max(hi, d.p, d.f); });
-  const span = hi - lo || 1;
-  lo -= span * 0.08; hi += span * 0.08;
-  const x = i => padL + (i / Math.max(1, data.length - 1)) * (W - padL - padR);
-  const y = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
-
-  // Raster
-  ctx.strokeStyle = "rgba(255,255,255,.06)";
-  ctx.lineWidth = 1;
-  ctx.fillStyle = "#8790c4";
-  ctx.font = "11px ui-monospace, Menlo, monospace";
-  ctx.textBaseline = "middle";
-  for (let k = 0; k <= 3; k++) {
-    const v = lo + (hi - lo) * (k / 3);
-    const yy = Math.round(y(v)) + 0.5;
-    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
-    ctx.fillText(nf(v < 10 ? 2 : 0).format(v), W - padR + 6, yy);
-  }
-
-  // Start-Markierung (Woche 0)
-  const i0 = data.findIndex(d => d.w === 0);
-  if (i0 > 0) {
-    ctx.strokeStyle = "rgba(255,204,0,.35)";
-    ctx.setLineDash([2, 3]);
-    ctx.beginPath(); ctx.moveTo(x(i0), padT); ctx.lineTo(x(i0), H - padB); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(255,204,0,.75)";
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText("Start", Math.min(x(i0) + 4, W - padR - 34), H - 4);
-  }
-  ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#8790c4";
-  ctx.fillText(data.length >= 104 ? "letzte 2 Jahre" : `${data.length} Wochen`, padL, H - 4);
-
-  // Fläche unter dem Kurs
-  const grad = ctx.createLinearGradient(0, padT, 0, H - padB);
-  grad.addColorStop(0, c.color + "55");
-  grad.addColorStop(1, c.color + "00");
-  ctx.beginPath();
-  data.forEach((d, i) => i ? ctx.lineTo(x(i), y(d.p)) : ctx.moveTo(x(i), y(d.p)));
-  ctx.lineTo(x(data.length - 1), H - padB);
-  ctx.lineTo(x(0), H - padB);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Kennzahlen-Wert (gestrichelt)
-  ctx.strokeStyle = "rgba(201,207,245,.7)";
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 3]);
-  ctx.beginPath();
-  data.forEach((d, i) => i ? ctx.lineTo(x(i), y(d.f)) : ctx.moveTo(x(i), y(d.f)));
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Kurs
-  ctx.strokeStyle = c.color;
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = "round";
-  ctx.shadowColor = c.color;
-  ctx.shadowBlur = 8;
-  ctx.beginPath();
-  data.forEach((d, i) => i ? ctx.lineTo(x(i), y(d.p)) : ctx.moveTo(x(i), y(d.p)));
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // News-Punkte
-  ctx.fillStyle = "#ffcc00";
-  data.forEach((d, i) => {
-    if (d.ev) { ctx.beginPath(); ctx.arc(x(i), y(d.p), 3, 0, Math.PI * 2); ctx.fill(); }
-  });
-
-  // aktueller Kurs
-  const last = data[data.length - 1];
-  ctx.fillStyle = c.color;
-  ctx.beginPath(); ctx.arc(x(data.length - 1), y(last.p), 4.5, 0, Math.PI * 2); ctx.fill();
-}
-
-/* =========================================================
-   Bedienung
-   ========================================================= */
-document.getElementById("btnNext").addEventListener("click", () => { step(false); render(true); });
-document.getElementById("btnTen").addEventListener("click", () => {
-  const collected = [];
-  for (let i = 0; i < 10; i++) { step(false); collected.push(...S.thisWeek); }
-  S.thisWeek = collected;
-  render(true);
-});
-document.getElementById("btnReset").addEventListener("click", () => {
-  if (confirm("Neues Spiel starten? Markt und beide Depots beginnen wieder bei 10.000 €.")) {
-    UI.qty = {};
-    newGame(); buildCards(); render(false);
-  }
-});
-grid.addEventListener("click", e => {
-  const b = e.target.closest("button");
-  const card = e.target.closest(".card");
-  if (!b || !card) return;
-  const c = company(card.dataset.id);
+// Klick auf einen Knopf im Handels-Bereich (Karte oder Detailansicht)
+function handleTradeButton(b, c) {
   if (b.dataset.depot) return setDepot(b.dataset.depot);
   if (b.dataset.mode) return setMode(b.dataset.mode);
   const qty = UI.qty[c.id] || 1;
@@ -1176,25 +1320,685 @@ grid.addEventListener("click", e => {
     case "sell": return trySell(UI.depot, c, qty, bucketFor(UI.depot));
     default: return;
   }
-  renderTradePanel(c);
+  renderTradePanels(c);
+}
+
+/* ---------- freundlicher Hinweis-Dialog ---------- */
+const overlay = document.getElementById("overlay");
+function showInfo({ icon, title, html, actions = [], closeLabel = "Alles klar 👍" }) {
+  document.getElementById("mIcon").textContent = icon;
+  document.getElementById("mTitle").textContent = title;
+  document.getElementById("mBody").innerHTML = html;
+  const box = document.getElementById("mActions");
+  box.innerHTML = "";
+  [...actions, { label: closeLabel, cls: "btn-primary" }].forEach(a => {
+    const b = document.createElement("button");
+    b.className = "btn " + a.cls;
+    b.textContent = a.label;
+    b.addEventListener("click", () => { if (!a.keepOpen) closeInfo(); if (a.fn) a.fn(b); });
+    box.appendChild(b);
+  });
+  overlay.hidden = false;
+  box.firstChild.focus();
+}
+function closeInfo() { overlay.hidden = true; }
+overlay.addEventListener("click", e => { if (e.target === overlay) closeInfo(); });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (!overlay.hidden) closeInfo();
+  else if (DV.id) closeDetail();
+});
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function newsForCompany(c) { return S.news.filter(n => n.ids.includes(c.id)); }
+
+function showNews(c, list) {
+  const n0 = list[0];
+  const idx = n0.day - S.t0;
+  const move = idx > 0 && idx < c.hp.length ? c.hp[idx] / c.hp[idx - 1] - 1 : null;
+  showInfo({
+    icon: KIND[n0.kind].icon,
+    title: `News · ${dayLabel(n0.day)}`,
+    html: list.map(n => `<p><span class="tag ${n.kind}" style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px">${KIND[n.kind].icon} ${KIND[n.kind].label}</span></p>
+        <p><b>${n.text}</b></p>
+        <p class="m-why">💡 ${KIND[n.kind].why}</p>`).join("")
+      + (move !== null ? `<p>Kurs von ${c.name} an diesem Tag: <b class="${move >= 0 ? "up" : "down"}">${fmtPct(move)}</b></p>` : ""),
+  });
+}
+
+function showWarn(c) {
+  const w = weakness(c), r20 = changeDays(c, 20);
+  const items = [];
+  if (w.loss) items.push("<li>📉 <b>Verlust:</b> Die Firma gibt mehr Geld aus, als sie einnimmt.</li>");
+  if (w.debt) items.push("<li>🏦 <b>Hohe Schulden:</b> Zinsen fressen einen großen Teil des Gewinns.</li>");
+  if (w.kgv) items.push("<li>🔥 <b>KGV zu hoch:</b> Der Kurs liegt weit über dem Wert laut Kennzahlen.</li>");
+  showInfo({
+    icon: "⚠️", title: "Vorsicht: Muster gut, Zahlen schwach",
+    html: `<p>Der Chart von <b>${c.name}</b> sieht gerade gut aus: <b class="up">${fmtPct(r20)}</b> in den letzten 4 Wochen.</p>
+      <p>Aber die Kennzahlen sind schwach:</p><ul>${items.join("")}</ul>
+      <p class="m-why">💡 <b>Merke:</b> Ein Muster allein reicht nicht. Bei Firmen mit schwachen Zahlen kippen Aufwärts-Trends besonders oft – der Kurs kann plötzlich drehen. Bei soliden Firmen kehrt der Kurs eher zum Kennzahlen-Wert (weiße Linie) zurück.</p>`,
+  });
+}
+
+function renderNews() {
+  const now = document.getElementById("newsNow");
+  const old = document.getElementById("newsOld");
+  const title = document.getElementById("newsTitle");
+  title.textContent = "📰 News dieser Woche";
+  const li = (n, showWeek) => `<li class="${n.dir > 0 ? "pos" : n.dir < 0 ? "neg" : ""}">
+      <span class="wk">${showWeek ? `W${dayWeek(n.day)} ` : ""}${dayName(n.day)}</span><span class="tag ${n.kind}">${KIND[n.kind].icon} ${KIND[n.kind].label}</span>
+      <span>${n.text}</span></li>`;
+  if (S.day === 0) {
+    now.innerHTML = `<li class="empty">Der Markt ist bereit. Tippe auf <b>„Nächste Woche ▶“</b> und schau, was passiert!</li>`;
+  } else if (!S.thisWeek.length) {
+    now.innerHTML = `<li class="empty">Ruhige Woche – keine besonderen News. Die Kurse bewegen sich nur durch Zufall und die Kennzahlen.</li>`;
+  } else {
+    const multi = S.thisWeek.some(n => dayWeek(n.day) !== weekNo());
+    title.textContent = multi ? "📰 News der letzten 10 Wochen" : "📰 News dieser Woche";
+    now.innerHTML = S.thisWeek.map(n => li(n, multi)).join("");
+  }
+  const thisIds = new Set(S.thisWeek.map(n => n.id));
+  const older = S.news.filter(n => n.day > 0 && !thisIds.has(n.id)).slice(0, 60);
+  old.innerHTML = older.length
+    ? older.map(n => li(n, true)).join("")
+    : `<li class="empty">Noch keine älteren News.</li>`;
+}
+
+/* =========================================================
+   Chart-Daten
+   Tages-Serie: ein Punkt pro Handelstag.
+   Intraday-Serie (für 1T / 1W): Verlauf innerhalb der Tage, alle 15 Minuten.
+   ========================================================= */
+const INTRA = 34; // 15-Minuten-Schritte von 9:00 bis 17:30
+const seriesCache = {};
+
+function dailySeries(c) {
+  const key = c.id + ":" + S.day + ":" + S.news.length;
+  if (seriesCache[c.id] && seriesCache[c.id].key === key) return seriesCache[c.id].s;
+  const pts = c.hp.map((p, i) => ({ p, f: c.hf[i], day: S.t0 + i }));
+  const byIdx = {};
+  newsForCompany(c).forEach(n => {
+    const i = n.day - S.t0;
+    if (i >= 0 && i < pts.length) (byIdx[i] = byIdx[i] || []).push(n);
+  });
+  const markers = Object.keys(byIdx).map(i => ({ i: +i, news: byIdx[i] }));
+  const s = { pts, markers, intraday: false };
+  seriesCache[c.id] = { key, s };
+  return s;
+}
+
+// Tagesverlauf als „Brücke“ vom Schlusskurs des Vortags zum Schlusskurs des Tages
+function intradayPath(c, idx, hasNews) {
+  const rnd = mulberry32(hashStr(c.id + ":" + (S.t0 + idx) + ":" + S.seed));
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+  const l0 = Math.log(c.hp[idx - 1]), l1 = Math.log(c.hp[idx]);
+  const s = (c.vol / SQRT_DAYS) / Math.sqrt(INTRA) * 1.1;
+  const jt = 1 + Math.floor(rnd() * (INTRA - 2)); // Uhrzeit der News
+  const W = [0];
+  for (let j = 1; j <= INTRA; j++) W.push(W[j - 1] + gauss() * s);
+  const lp = [];
+  for (let j = 0; j <= INTRA; j++) {
+    const lin = j / INTRA;
+    const g = hasNews ? 0.3 * lin + 0.7 * (j >= jt ? 1 : 0) : lin;
+    lp.push(l0 + (l1 - l0) * g + W[j] - lin * W[INTRA]);
+  }
+  return { p: lp.map(Math.exp), jt };
+}
+
+function intradaySeries(c) {
+  const daily = dailySeries(c), n = c.hp.length;
+  const first = n - 1 - DAYS;
+  const pts = [{ p: c.hp[first], f: c.hf[first], day: S.t0 + first, j: INTRA }];
+  const markers = [];
+  for (let idx = first + 1; idx < n; idx++) {
+    const m = daily.markers.find(m => m.i === idx);
+    const path = intradayPath(c, idx, !!m);
+    const base = pts.length - 1;
+    for (let j = 1; j <= INTRA; j++) pts.push({ p: path.p[j], f: c.hf[idx], day: S.t0 + idx, j });
+    if (m) markers.push({ i: base + path.jt, news: m.news });
+  }
+  return { pts, markers, intraday: true };
+}
+
+const timeLabel = j => {
+  const min = 9 * 60 + j * 15;
+  return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
+};
+function pointLabel(s, i) {
+  const pt = s.pts[i];
+  return s.intraday ? `${dayLabel(pt.day)} · ${timeLabel(pt.j)} Uhr` : dayLabel(pt.day);
+}
+
+/* =========================================================
+   Chart zeichnen (für Karten und Detailansicht)
+   a, b = sichtbarer Bereich (Index in der Serie, darf Kommazahl sein)
+   ========================================================= */
+function drawChart(canvas, c, s, a, b, opt = {}) {
+  const compact = !!opt.compact;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (!W || !H) return { hits: [] };
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const pts = s.pts;
+  const i0 = Math.max(0, Math.floor(a)), i1 = Math.min(pts.length - 1, Math.ceil(b));
+  const L = compact ? 4 : 8, R = W - (compact ? 60 : 84), T = compact ? 34 : 40, B = H - (compact ? 18 : 28);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = i0; i <= i1; i++) { lo = Math.min(lo, pts[i].p, pts[i].f); hi = Math.max(hi, pts[i].p, pts[i].f); }
+  const span = hi - lo || hi * 0.02 || 1;
+  lo -= span * 0.08; hi += span * 0.1;
+  const x = i => L + ((i - a) / Math.max(1e-9, b - a)) * (R - L);
+  const y = v => T + (1 - (v - lo) / (hi - lo)) * (B - T);
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(L, 0, R - L, H); ctx.clip();
+
+  // Zonen: über dem Kennzahlen-Wert = teuer (rot), darunter = günstig (grün)
+  const fairPath = () => { for (let i = i0; i <= i1; i++) ctx.lineTo(x(i), y(pts[i].f)); };
+  ctx.beginPath(); ctx.moveTo(x(i0), T - 40); fairPath(); ctx.lineTo(x(i1), T - 40); ctx.closePath();
+  ctx.fillStyle = "rgba(255, 93, 93, .13)"; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x(i0), B); fairPath(); ctx.lineTo(x(i1), B); ctx.closePath();
+  ctx.fillStyle = "rgba(43, 255, 136, .10)"; ctx.fill();
+
+  // Raster + Preis-Achse
+  ctx.strokeStyle = "rgba(255,255,255,.06)";
+  ctx.lineWidth = 1;
+  for (let k = 0; k <= 3; k++) {
+    const yy = Math.round(y(lo + (hi - lo) * (k / 3))) + 0.5;
+    ctx.beginPath(); ctx.moveTo(L, yy); ctx.lineTo(R, yy); ctx.stroke();
+  }
+
+  // Zeit-Achse
+  ctx.font = (compact ? "10px " : "11px ") + "ui-monospace, Menlo, monospace";
+  ctx.textBaseline = "alphabetic";
+  const ticks = timeTicks(s, a, b, (R - L) / (compact ? 90 : 80));
+  ticks.forEach(tk => {
+    const xx = Math.round(x(tk.i)) + 0.5;
+    ctx.strokeStyle = tk.major ? "rgba(255,255,255,.10)" : "rgba(255,255,255,.05)";
+    ctx.beginPath(); ctx.moveTo(xx, T - 10); ctx.lineTo(xx, B); ctx.stroke();
+    if (!compact || tk.major) { ctx.fillStyle = "#8790c4"; ctx.fillText(tk.label, xx + 3, H - (compact ? 4 : 9)); }
+  });
+
+  // Start-Markierung (Woche 0)
+  if (!s.intraday) {
+    const iStart = pts.findIndex(pt => pt.day === 0);
+    if (iStart >= i0 && iStart <= i1) {
+      ctx.strokeStyle = "rgba(255,204,0,.5)";
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x(iStart), T - 10); ctx.lineTo(x(iStart), B); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255,204,0,.85)";
+      ctx.fillText("Start", x(iStart) + 4, T - 2);
+    }
+  }
+
+  // Fläche unter dem Kurs
+  const grad = ctx.createLinearGradient(0, T, 0, B);
+  grad.addColorStop(0, c.color + "40");
+  grad.addColorStop(1, c.color + "00");
+  ctx.beginPath();
+  for (let i = i0; i <= i1; i++) i === i0 ? ctx.moveTo(x(i), y(pts[i].p)) : ctx.lineTo(x(i), y(pts[i].p));
+  ctx.lineTo(x(i1), B); ctx.lineTo(x(i0), B); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+
+  // Wert laut Kennzahlen – kräftige weiße Linie mit Leuchten
+  ctx.strokeStyle = "rgba(255,255,255,.95)";
+  ctx.lineWidth = compact ? 2 : 3;
+  ctx.shadowColor = "rgba(255,255,255,.7)"; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  for (let i = i0; i <= i1; i++) i === i0 ? ctx.moveTo(x(i), y(pts[i].f)) : ctx.lineTo(x(i), y(pts[i].f));
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Kurs
+  ctx.strokeStyle = c.color;
+  ctx.lineWidth = compact ? 2.2 : 2.8;
+  ctx.lineJoin = "round";
+  ctx.shadowColor = c.color; ctx.shadowBlur = 8;
+  ctx.beginPath();
+  for (let i = i0; i <= i1; i++) i === i0 ? ctx.moveTo(x(i), y(pts[i].p)) : ctx.lineTo(x(i), y(pts[i].p));
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Zonen-Beschriftung
+  ctx.font = `900 ${compact ? 10 : 12}px -apple-system, Segoe UI, sans-serif`;
+  // auf Karten rechts, damit der Zoom-Knopf oben links nichts verdeckt
+  const zx = compact ? R - 6 : L + 6, fyz = y(pts[compact ? i1 : i0].f);
+  ctx.textAlign = compact ? "right" : "left";
+  if (fyz - T > 16) { ctx.fillStyle = "rgba(255, 120, 120, .9)"; ctx.fillText("▲ TEUER", zx, T + (compact ? 10 : 14)); }
+  if (B - fyz > 16) { ctx.fillStyle = "rgba(80, 255, 160, .85)"; ctx.fillText("▼ GÜNSTIG", zx, B - 6); }
+  ctx.textAlign = "left";
+
+  // News-Symbole (antippbar)
+  const hits = [];
+  const r = compact ? 8 : 11;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  s.markers.forEach(m => {
+    if (m.i < a - 0.5 || m.i > b + 0.5) return;
+    const px = x(m.i), py = y(pts[m.i].p);
+    m.news.forEach((n, k) => {
+      const my = Math.max(T - 22 + r, py - (compact ? 16 : 22) - k * (r * 2 + 3));
+      ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, my + r); ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, my, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#0b0e1a"; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = n.dir > 0 ? "#2bff88" : n.dir < 0 ? "#ff4d6d" : KIND[n.kind].color; ctx.stroke();
+      ctx.font = `${compact ? 9 : 12}px -apple-system, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(KIND[n.kind].icon, px, my + 1);
+      hits.push({ x: px, y: my, r: Math.max(r + 4, 16), news: [n] });
+    });
+  });
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+
+  // aktueller Kurs + Warnsymbol
+  const iLast = pts.length - 1;
+  if (iLast <= b + 0.5 && iLast >= a) {
+    const lx = x(iLast), ly = y(pts[iLast].p);
+    ctx.fillStyle = c.color;
+    ctx.beginPath(); ctx.arc(lx, ly, compact ? 4.5 : 6, 0, Math.PI * 2); ctx.fill();
+    if (opt.warn) {
+      ctx.font = `${compact ? 16 : 22}px -apple-system, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+      ctx.textAlign = "right";
+      ctx.fillText("⚠️", lx - 6, Math.max(T + 4, ly - 12));
+      ctx.textAlign = "left";
+    }
+  }
+
+  // Maus-Fadenkreuz
+  if (opt.hover != null && opt.hover >= i0 && opt.hover <= i1) {
+    const hi_ = opt.hover, hx = x(hi_), pt = pts[hi_];
+    ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hx, T - 10); ctx.lineTo(hx, B); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(hx, y(pt.p), 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(hx, y(pt.f), 4, 0, Math.PI * 2); ctx.fill();
+    const diff = pt.p / pt.f - 1;
+    const lines = [pointLabel(s, hi_), `Kurs ${fmtEUR(pt.p)}`, `Wert lt. Kennzahlen ${fmtEUR(pt.f)}`, `${diff >= 0 ? "teuer" : "günstig"}: ${fmtPct(diff, 0)}`];
+    ctx.font = "12px ui-monospace, Menlo, monospace";
+    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, bh = lines.length * 16 + 10;
+    const bx = hx + 12 + bw > R ? hx - 12 - bw : hx + 12, by = T;
+    ctx.fillStyle = "rgba(11,14,26,.92)"; ctx.strokeStyle = "rgba(255,255,255,.2)";
+    roundRect(ctx, bx, by, bw, bh, 8); ctx.fill(); ctx.stroke();
+    lines.forEach((l, k) => {
+      ctx.fillStyle = k === 0 ? "#9aa3d0" : k === 3 ? (diff >= 0 ? "#ff8a8a" : "#5dffa8") : "#e8ebff";
+      ctx.fillText(l, bx + 8, by + 20 + k * 16);
+    });
+  }
+  ctx.restore();
+
+  // rechte Achse: Werte + Etiketten für Kurs und Kennzahlen-Wert
+  ctx.font = (compact ? "10px " : "11px ") + "ui-monospace, Menlo, monospace";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#8790c4";
+  for (let k = 0; k <= 3; k++) {
+    const v = lo + (hi - lo) * (k / 3);
+    ctx.fillText(fmtPrice(v), R + 6, y(v));
+  }
+  const tag = (v, bg, fg) => {
+    const yy = clamp(y(v), T, B), txt = fmtPrice(v), w = ctx.measureText(txt).width + 10;
+    ctx.fillStyle = bg; roundRect(ctx, R + 2, yy - 9, w, 18, 5); ctx.fill();
+    ctx.fillStyle = fg; ctx.fillText(txt, R + 7, yy + 0.5);
+    return yy;
+  };
+  tag(pts[i1].f, "#ffffff", "#0b0e1a");
+  tag(pts[i1].p, c.color, "#0b0e1a");
+  ctx.textBaseline = "alphabetic";
+  if (!compact) {
+    ctx.fillStyle = "rgba(255,255,255,.75)";
+    ctx.font = "800 11px -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("weiß = Wert laut Kennzahlen", L + 6, 16);
+  }
+  return { hits, L, R, T, B };
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// Beschriftung der Zeit-Achse, passend zur Zoomstufe
+function timeTicks(s, a, b, maxTicks) {
+  const out = [], pts = s.pts, i0 = Math.max(0, Math.ceil(a)), i1 = Math.min(pts.length - 1, Math.floor(b));
+  if (s.intraday) {
+    const daysVisible = (b - a) / INTRA;
+    const hourStep = daysVisible > 2 ? 0 : daysVisible > 0.9 ? 8 : 4;
+    for (let i = i0; i <= i1; i++) {
+      const pt = pts[i];
+      if (pt.j === INTRA && i < pts.length - 1) out.push({ i, label: `${dayName(pts[i + 1].day)} W${dayWeek(pts[i + 1].day)}`, major: true });
+      else if (hourStep && pt.j % hourStep === 0 && pt.j !== 0) out.push({ i, label: timeLabel(pt.j), major: false });
+    }
+    return out;
+  }
+  const steps = [1, 5, 10, 20, 65, 130, 260, 520, 1040];
+  const step = steps.find(st => (b - a) / st <= maxTicks) || 1040;
+  for (let i = i0; i <= i1; i++) {
+    const t = pts[i].day;
+    if (((t % step) + step) % step !== 0) continue;
+    const label = step === 1 ? `${dayName(t)} W${dayWeek(t)}` : `W${dayWeek(t)}`;
+    out.push({ i, label, major: step === 1 ? dayName(t) === "Mo" : true });
+  }
+  return out;
+}
+
+function hitTest(hits, px, py) {
+  let best = null, bd = Infinity;
+  hits.forEach(h => {
+    const d = Math.hypot(h.x - px, h.y - py);
+    if (d <= h.r && d < bd) { bd = d; best = h; }
+  });
+  return best;
+}
+
+/* =========================================================
+   Detailansicht mit Zoom (Pinch / Mausrad) und Wischen
+   ========================================================= */
+const RANGES = {
+  "1T":  { intraday: true, len: INTRA, label: "1 Tag" },
+  "1W":  { intraday: true, len: DAYS * INTRA, label: "1 Woche" },
+  "1M":  { intraday: false, len: 21, label: "1 Monat" },
+  "1J":  { intraday: false, len: YEAR_DAYS, label: "1 Jahr" },
+  "all": { intraday: false, len: Infinity, label: "Alles" },
+};
+const DV = { id: null, range: "1M", s: null, a: 0, b: 1, zoomed: false, hover: null, hits: [], plot: null };
+const detail = document.getElementById("detail");
+const dCanvas = document.getElementById("dCanvas");
+const dTrade = document.getElementById("dTrade");
+dTrade.innerHTML = tradePanelHTML();
+
+function openDetail(id) {
+  const c = company(id);
+  DV.id = id;
+  document.getElementById("dIcon").textContent = c.icon;
+  document.getElementById("dIcon").style.setProperty("--c", c.color);
+  document.getElementById("dName").innerHTML = `${c.name}<span class="badge">${c.real ? "simuliert" : "erfunden"}</span>`;
+  document.getElementById("dSector").innerHTML = `${c.sector} · <span class="vol vol-${c.volType}">${VOL_LABEL[c.volType]}</span>`;
+  document.getElementById("dLegend").innerHTML = legendHTML(c);
+  detail.style.setProperty("--c", c.color);
+  detail.hidden = false;
+  document.body.classList.add("locked");
+  detail.scrollTop = 0;
+  setRange(DV.range);
+  renderDetail(false);
+  document.getElementById("dClose").focus();
+}
+function closeDetail() {
+  DV.id = null; DV.hover = null;
+  detail.hidden = true;
+  document.body.classList.remove("locked");
+}
+
+function setRange(r) {
+  DV.range = r;
+  DV.zoomed = false;
+  const c = company(DV.id), cfg = RANGES[r];
+  DV.s = cfg.intraday ? intradaySeries(c) : dailySeries(c);
+  const n = DV.s.pts.length;
+  DV.b = n - 1;
+  DV.a = Math.max(0, n - 1 - Math.min(cfg.len, n - 1));
+  detail.querySelectorAll("[data-range]").forEach(btn => btn.setAttribute("aria-pressed", String(btn.dataset.range === r)));
+  save();
+}
+
+function renderDetail(refreshSeries) {
+  const c = company(DV.id);
+  if (refreshSeries) setRange(DV.range);
+  const now = price(c);
+  document.getElementById("dPrice").textContent = fmtEUR(now);
+  document.getElementById("dWarn").hidden = !patternWarning(c);
+  document.getElementById("dGauge").innerHTML = gaugeHTML(c);
+  document.getElementById("dMetrics").innerHTML = metricsHTML(c);
+  renderTradePanel(c, dTrade, k => dTrade.querySelector(`[data-k="${k}"]`));
+  drawDetail();
+}
+
+function drawDetail() {
+  if (!DV.id) return;
+  const c = company(DV.id), s = DV.s;
+  const res = drawChart(dCanvas, c, s, DV.a, DV.b, { warn: patternWarning(c), hover: DV.hover });
+  DV.hits = res.hits; DV.plot = res;
+  // Veränderung im sichtbaren Zeitraum
+  const ia = clamp(Math.round(DV.a), 0, s.pts.length - 1), ib = clamp(Math.round(DV.b), 0, s.pts.length - 1);
+  const chg = s.pts[ib].p / s.pts[ia].p - 1;
+  const el = document.getElementById("dChg");
+  el.textContent = `${chg >= 0 ? "▲" : "▼"} ${fmtPct(chg)} ${DV.zoomed ? "im Ausschnitt" : RANGES[DV.range].label}`;
+  el.className = "chg " + (chg >= 0 ? "up" : "down");
+  document.getElementById("dRangeInfo").textContent = `${pointLabel(s, ia)} – ${pointLabel(s, ib)}`;
+}
+let drawQueued = false;
+function queueDraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => { drawQueued = false; drawDetail(); });
+}
+
+function setWindow(a, b) {
+  const n = DV.s.pts.length, minSpan = DV.s.intraday ? 8 : 5;
+  let span = clamp(b - a, Math.min(minSpan, n - 1), n - 1);
+  const mid = (a + b) / 2;
+  a = mid - span / 2; b = mid + span / 2;
+  if (a < 0) { b -= a; a = 0; }
+  if (b > n - 1) { a -= b - (n - 1); b = n - 1; }
+  DV.a = Math.max(0, a); DV.b = b;
+  if (!DV.zoomed) {
+    DV.zoomed = true;
+    detail.querySelectorAll("[data-range]").forEach(btn => btn.setAttribute("aria-pressed", "false"));
+  }
+  queueDraw();
+}
+// Zoom um eine Stelle (px) herum: factor < 1 = hineinzoomen
+function zoomAt(px, factor) {
+  const { L, R } = DV.plot;
+  const f = clamp((px - L) / (R - L), 0, 1);
+  const ci = DV.a + f * (DV.b - DV.a), span = (DV.b - DV.a) * factor;
+  setWindow(ci - f * span, ci - f * span + span);
+}
+function indexAt(px) {
+  const { L, R } = DV.plot;
+  return Math.round(DV.a + clamp((px - L) / (R - L), 0, 1) * (DV.b - DV.a));
+}
+
+const ptrs = new Map();
+let gesture = null;
+const localXY = e => { const r = dCanvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+
+// eine Hand: wischen (und evtl. antippen) · zwei Finger: zoomen
+function startGesture(canTap) {
+  const list = [...ptrs.values()];
+  if (list.length === 1) {
+    gesture = { type: "pan", x0: list[0].x, y0: list[0].y, a0: DV.a, b0: DV.b, moved: 0, t0: performance.now(), tap: canTap };
+  } else if (list.length >= 2) {
+    const [p, q] = list;
+    const mid = (p.x + q.x) / 2, { L, R } = DV.plot;
+    const f = clamp((mid - L) / (R - L), 0, 1);
+    gesture = { type: "pinch", d0: Math.max(20, Math.abs(p.x - q.x)), ci: DV.a + f * (DV.b - DV.a), span0: DV.b - DV.a };
+  } else gesture = null;
+}
+dCanvas.addEventListener("pointerdown", e => {
+  if (!DV.plot) return;
+  dCanvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, localXY(e));
+  DV.hover = null;
+  startGesture(ptrs.size === 1);
+  if (e.pointerType === "mouse") dCanvas.classList.add("grabbing");
+});
+dCanvas.addEventListener("pointermove", e => {
+  const pos = localXY(e);
+  if (!ptrs.has(e.pointerId)) {
+    if (e.pointerType === "mouse" && DV.plot) { DV.hover = indexAt(pos.x); queueDraw(); }
+    return;
+  }
+  ptrs.set(e.pointerId, pos);
+  if (!gesture) return;
+  const { L, R } = DV.plot;
+  if (gesture.type === "pan") {
+    const dx = pos.x - gesture.x0;
+    gesture.moved = Math.max(gesture.moved, Math.hypot(dx, pos.y - gesture.y0));
+    if (gesture.moved < 6) return;
+    const shift = -dx / (R - L) * (gesture.b0 - gesture.a0);
+    setWindow(gesture.a0 + shift, gesture.b0 + shift);
+  } else {
+    const [p, q] = [...ptrs.values()];
+    const d = Math.max(20, Math.abs(p.x - q.x)), mid = (p.x + q.x) / 2;
+    const span = gesture.span0 * (gesture.d0 / d);
+    const f = clamp((mid - L) / (R - L), 0, 1);
+    setWindow(gesture.ci - f * span, gesture.ci - f * span + span);
+  }
+});
+function endPointer(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  const pos = localXY(e);
+  const wasTap = gesture && gesture.type === "pan" && gesture.tap && gesture.moved < 8 && performance.now() - gesture.t0 < 600;
+  ptrs.delete(e.pointerId);
+  dCanvas.classList.remove("grabbing");
+  if (wasTap && e.type === "pointerup") {
+    const hit = hitTest(DV.hits, pos.x, pos.y);
+    if (hit) showNews(company(DV.id), hit.news);
+  }
+  startGesture(false);
+}
+dCanvas.addEventListener("pointerup", endPointer);
+dCanvas.addEventListener("pointercancel", endPointer);
+dCanvas.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !ptrs.size) { DV.hover = null; queueDraw(); } });
+dCanvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  if (!DV.plot) return;
+  const pos = localXY(e);
+  if (!e.ctrlKey && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    const shift = e.deltaX / (DV.plot.R - DV.plot.L) * (DV.b - DV.a);
+    setWindow(DV.a + shift, DV.b + shift);
+  } else {
+    zoomAt(pos.x, Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+  }
+  DV.hover = indexAt(pos.x);
+}, { passive: false });
+// Safari: Seiten-Zoom im Chart verhindern
+["gesturestart", "gesturechange"].forEach(t => dCanvas.addEventListener(t, e => e.preventDefault()));
+
+detail.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b || !DV.id) return;
+  const c = company(DV.id);
+  if (b.dataset.range) { setRange(b.dataset.range); drawDetail(); return; }
+  if (b.id === "dClose") return closeDetail();
+  if (b.id === "dWarn") return showWarn(c);
+  if (b.id === "dNext") return nextWeek();
+  if (dTrade.contains(b)) handleTradeButton(b, c);
+});
+
+/* =========================================================
+   Ergebnis teilen
+   ========================================================= */
+function shareText() {
+  const t = S.depots.trader, i = S.depots.investor;
+  const vt = depotValue(t), vi = depotValue(i);
+  const line = (m, d, v) => `${m.icon} ${m.name}: ${fmtEUR0(v)} (${fmtPct(v / START_CASH - 1)}) · höchster Stand ${fmtEUR0(d.hi)} · tiefster Stand ${fmtEUR0(d.lo)} · größter Rückgang −${nf1.format(d.maxDD * 100)} %`;
+  const diff = vt - vi;
+  const lead = Math.abs(diff) < 0.5 ? "⚖️ Gleichstand!"
+    : `🏆 ${diff > 0 ? "Trader" : "Investor"} liegt vorne: +${fmtEUR0(Math.abs(diff))}`;
+  return [
+    `📈 Börsen-Duell (Simulation) – ${weekNo()} ${weekNo() === 1 ? "Woche" : "Wochen"} gespielt`,
+    line(DEPOTS.trader, t, vt),
+    line(DEPOTS.investor, i, vi),
+    lead,
+    "Nur ein Lernspiel mit erfundenen Kursen – keine Anlageberatung.",
+  ].join("\n");
+}
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+  } catch (e) { /* weiter mit dem alten Weg */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", "");
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+async function shareResult() {
+  const text = shareText();
+  if (navigator.share) {
+    try { await navigator.share({ title: "Börsen-Duell – mein Ergebnis", text }); return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const ok = await copyText(text);
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  showInfo({
+    icon: "📤", title: ok ? "Ergebnis kopiert!" : "Dein Ergebnis",
+    html: `<p>${ok ? "Der Text liegt in der Zwischenablage – du kannst ihn jetzt in eine Nachricht einfügen." : "Markiere den Text und kopiere ihn, um ihn zu teilen."}</p>
+      <div class="m-share">${esc}</div>`,
+    actions: ok ? [] : [{ label: "📋 Nochmal kopieren", cls: "btn-ghost", keepOpen: true, fn: async (btn) => { btn.textContent = (await copyText(text)) ? "✅ Kopiert" : "Bitte von Hand kopieren"; } }],
+  });
+  if (ok) toast("📋 Ergebnis in die Zwischenablage kopiert");
+}
+
+/* =========================================================
+   Bedienung
+   ========================================================= */
+function nextWeek() { simWeek(); render(true); save(); }
+document.getElementById("btnNext").addEventListener("click", nextWeek);
+document.getElementById("btnTen").addEventListener("click", () => {
+  const collected = [];
+  for (let i = 0; i < 10; i++) { simWeek(); collected.push(...S.thisWeek); }
+  S.thisWeek = collected;
+  render(true);
+  save();
+});
+document.getElementById("btnReset").addEventListener("click", () => {
+  if (confirm("Neues Spiel starten? Markt und beide Depots beginnen wieder bei 10.000 €. Der gespeicherte Spielstand wird gelöscht.")) {
+    UI.qty = {};
+    clearSave();
+    newGame(); buildCards(); render(false); save();
+  }
+});
+document.getElementById("btnShare").addEventListener("click", shareResult);
+grid.addEventListener("click", e => {
+  const b = e.target.closest("button, [data-act='open']");
+  const card = e.target.closest(".card");
+  if (!b || !card) return;
+  const c = company(card.dataset.id);
+  if (b.dataset.act === "open") return openDetail(c.id);
+  if (b.dataset.act === "warn") return showWarn(c);
+  handleTradeButton(b, c);
 });
 document.getElementById("depots").addEventListener("click", e => {
   const b = e.target.closest("button[data-depot]");
   if (b) setDepot(b.dataset.depot);
 });
-document.getElementById("btnExp").addEventListener("click", e => {
-  const on = document.body.classList.toggle("no-exp");
-  e.currentTarget.setAttribute("aria-pressed", String(!on));
+const btnExp = document.getElementById("btnExp");
+btnExp.addEventListener("click", () => {
+  const off = document.body.classList.toggle("no-exp");
+  btnExp.setAttribute("aria-pressed", String(!off));
+  save();
 });
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => S.companies.forEach(c => drawChart(cardEls[c.id].canvas, c)), 120);
+  resizeTimer = setTimeout(() => { S.companies.forEach(drawCardChart); drawDetail(); }, 120);
 });
 
-newGame();
+const loaded = load();
+if (!loaded) newGame();
+btnExp.setAttribute("aria-pressed", String(!document.body.classList.contains("no-exp")));
 buildCards();
 render(false);
+save();
+if (loaded && S.day > 0) toast(`💾 Willkommen zurück – Spielstand von Woche ${weekNo()} geladen`);
 </script>
 </body>
 </html>
