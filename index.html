@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0e1a">
+<title>Börsen-Duell – Simulation v0.2</title>
+<style>
+  :root {
+    --bg: #0b0e1a;
+    --bg2: #12162a;
+    --card: #161b33;
+    --card2: #1d2342;
+    --line: #2a3160;
+    --text: #e8ebff;
+    --muted: #9aa3d0;
+    --up: #2bff88;
+    --down: #ff4d6d;
+    --accent: #ffcc00;
+    --accent2: #00e5ff;
+    --violet: #a26bff;
+    --trader: #ff4dd2;
+    --investor: #36d6ff;
+    --radius: 18px;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #1b1f4a 0%, transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, #2a1048 0%, transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.4;
+    min-height: 100vh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  button { font: inherit; color: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+  /* ---------- Simulations-Banner (immer sichtbar) ---------- */
+  .sticky { position: sticky; top: 0; z-index: 50; }
+  .sim-banner {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top));
+    background: repeating-linear-gradient(-45deg, #ffcc00 0 18px, #ffb300 18px 36px);
+    color: #111; font-weight: 900; letter-spacing: .18em; text-transform: uppercase;
+    font-size: 15px; text-align: center;
+    box-shadow: 0 4px 20px rgba(255, 204, 0, .35);
+  }
+  .sim-banner small { letter-spacing: .02em; text-transform: none; font-weight: 700; opacity: .8; }
+
+  /* ---------- Kopfbereich ---------- */
+  header.top {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+    padding: 12px 16px;
+    background: rgba(11, 14, 26, .88);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .logo {
+    font-weight: 900; font-size: 22px; letter-spacing: .04em;
+    background: linear-gradient(90deg, var(--accent2), var(--violet), #ff4dd2);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-right: auto;
+  }
+  .logo span { font-size: 12px; color: var(--muted); -webkit-text-fill-color: var(--muted); margin-left: 6px; letter-spacing: 0; }
+  .week-box {
+    font-family: var(--mono); font-weight: 800; font-size: 18px;
+    padding: 8px 14px; border-radius: 12px;
+    background: var(--card); border: 1px solid var(--line);
+  }
+  .week-box b { color: var(--accent2); }
+  .rate-box { font-family: var(--mono); font-size: 13px; color: var(--muted); padding: 8px 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); }
+  .btn {
+    min-height: 52px; padding: 0 20px; border-radius: 14px; border: 0; cursor: pointer;
+    font-weight: 800; font-size: 17px;
+    transition: transform .08s ease, box-shadow .2s ease, filter .2s;
+    user-select: none; -webkit-user-select: none;
+  }
+  .btn:active { transform: scale(.96); }
+  .btn-primary {
+    background: linear-gradient(135deg, #00e5ff, #7a5cff);
+    color: #050716;
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, .3), 0 8px 28px rgba(0, 229, 255, .35);
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-ghost { background: var(--card); border: 1px solid var(--line); color: var(--text); }
+  .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+
+  main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+
+  /* ---------- News ---------- */
+  .news {
+    background: linear-gradient(180deg, var(--card2), var(--card));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 16px;
+  }
+  .news h2 { margin: 0 0 8px; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .news ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .news li {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.03);
+    border-left: 4px solid var(--muted);
+    animation: pop .35s ease;
+  }
+  .news li.pos { border-left-color: var(--up); }
+  .news li.neg { border-left-color: var(--down); }
+  .news .tag {
+    flex: none; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  .tag.stimmung { background: rgba(255, 77, 210, .15); color: #ff8be3; }
+  .tag.kennzahlen { background: rgba(0, 229, 255, .15); color: var(--accent2); }
+  .tag.zahlen { background: rgba(255, 204, 0, .15); color: var(--accent); }
+  .news .empty { color: var(--muted); font-style: italic; border-left-color: var(--line); }
+  .news .wk { font-family: var(--mono); color: var(--muted); font-size: 12px; flex: none; padding-top: 3px; }
+  .news-old { margin-top: 10px; }
+  .news-old summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 0; min-height: 36px; display: flex; align-items: center; }
+  .news-old ul { margin-top: 8px; max-height: 280px; overflow: auto; }
+  .legend-tags { font-size: 13px; color: var(--muted); margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+
+  /* ---------- Hilfe ---------- */
+  .help {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .help summary { cursor: pointer; padding: 14px 16px; font-weight: 800; min-height: 52px; display: flex; align-items: center; gap: 8px; }
+  .help .body { padding: 0 16px 16px; color: var(--muted); }
+  .help .body p { margin: 6px 0; }
+  .help .body b { color: var(--text); }
+
+  /* ---------- Firmen-Karten ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .card {
+    position: relative;
+    background: linear-gradient(180deg, var(--card2), var(--card));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
+    background: var(--c); box-shadow: 0 0 18px var(--c);
+  }
+  .card-head { display: flex; align-items: center; gap: 12px; }
+  .icon {
+    width: 52px; height: 52px; flex: none; border-radius: 14px;
+    display: grid; place-items: center; font-size: 26px;
+    background: color-mix(in srgb, var(--c) 22%, transparent);
+    border: 2px solid var(--c);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--c) 45%, transparent);
+  }
+  .name { font-weight: 900; font-size: 20px; }
+  .sector { color: var(--muted); font-size: 13px; }
+  .badge { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; background: rgba(255,255,255,.08); color: var(--muted); }
+  .price-wrap { margin-left: auto; text-align: right; }
+  .price { font-family: var(--mono); font-size: 22px; font-weight: 800; border-radius: 8px; padding: 0 4px; }
+  .chg { font-family: var(--mono); font-size: 14px; font-weight: 700; }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+  .flash-up { animation: flashUp .7s ease; }
+  .flash-down { animation: flashDown .7s ease; }
+  @keyframes flashUp { 0% { background: rgba(43,255,136,.45); } 100% { background: transparent; } }
+  @keyframes flashDown { 0% { background: rgba(255,77,109,.45); } 100% { background: transparent; } }
+  @keyframes pop { 0% { transform: translateY(-4px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+
+  .chart-box { margin: 12px -4px 4px; position: relative; }
+  canvas.chart { width: 100%; height: 170px; display: block; }
+  .chart-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); padding: 0 4px; flex-wrap: wrap; }
+  .chart-legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+  .chart-legend i.dash { background: repeating-linear-gradient(90deg, #c9cff5 0 4px, transparent 4px 7px); }
+  .chart-legend i.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .metric { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .metric .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .metric .val { font-family: var(--mono); font-size: 18px; font-weight: 800; margin-top: 2px; }
+  .metric .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .metric .exp { font-size: 13px; color: #c3c9ee; margin-top: 6px; line-height: 1.35; }
+  body.no-exp .metric .exp { display: none; }
+
+  .verdict {
+    margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+    background: rgba(255,255,255,.04); border: 1px dashed var(--line);
+    font-size: 14px;
+  }
+  .verdict b { color: var(--accent); }
+
+  .vol { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; margin-top: 4px; letter-spacing: .03em; }
+  .vol-ruhig { background: rgba(0, 229, 255, .12); color: var(--accent2); }
+  .vol-mittel { background: rgba(255, 204, 0, .12); color: var(--accent); }
+  .vol-wild { background: rgba(255, 77, 109, .14); color: #ff8a9e; }
+  .approx {
+    grid-column: 1 / -1; font-size: 12px; color: var(--accent);
+    background: rgba(255, 204, 0, .07); border: 1px dashed rgba(255, 204, 0, .4);
+    border-radius: 10px; padding: 6px 10px;
+  }
+
+  /* ---------- Duell-Anzeige ---------- */
+  .duel {
+    display: grid; grid-template-columns: 1fr minmax(160px, 2fr) 1fr; align-items: center; gap: 12px;
+    padding: 8px 16px 10px;
+    background: rgba(11, 14, 26, .92);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .duel-side { font-family: var(--mono); line-height: 1.2; }
+  .duel-side.investor { text-align: right; }
+  .duel-side .d-name { font-family: inherit; font-weight: 900; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; }
+  .duel-side.trader .d-name { color: var(--trader); }
+  .duel-side.investor .d-name { color: var(--investor); }
+  .duel-side .d-val { font-size: 18px; font-weight: 800; }
+  .duel-side .d-pct { font-size: 13px; font-weight: 700; }
+  .duel-bar {
+    position: relative; height: 14px; border-radius: 999px; overflow: hidden;
+    background: var(--investor); box-shadow: 0 0 14px rgba(54, 214, 255, .35);
+  }
+  .duel-bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--trader); transition: width .5s ease; box-shadow: 0 0 14px var(--trader); }
+  .duel-bar .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.55); }
+  .duel-lead { text-align: center; font-weight: 800; font-size: 14px; margin-top: 4px; }
+
+  /* ---------- Depots ---------- */
+  .depots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .depot {
+    background: linear-gradient(180deg, var(--card2), var(--card));
+    border: 2px solid var(--line); border-radius: var(--radius); padding: 16px;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .depot.active { border-color: var(--dc); box-shadow: 0 0 0 1px var(--dc), 0 0 26px color-mix(in srgb, var(--dc) 35%, transparent); }
+  .depot-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .depot-head h2 { margin: 0; font-size: 20px; color: var(--dc); letter-spacing: .04em; }
+  .depot-head .rule { color: var(--muted); font-size: 13px; width: 100%; }
+  .depot-head .btn { min-height: 44px; font-size: 14px; margin-left: auto; }
+  .depot.active .depot-head .btn { border-color: var(--dc); color: var(--dc); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+  .stat { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+  .stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .stat .val { font-family: var(--mono); font-size: 17px; font-weight: 800; }
+  .stat.total .val { color: var(--dc); }
+  .result-line { font-family: var(--mono); font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .positions { display: grid; gap: 6px; }
+  .pos-row {
+    display: grid; grid-template-columns: minmax(0, 1.6fr) .7fr 1fr 1fr; gap: 8px; align-items: center;
+    padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.03); font-size: 14px;
+    border-left: 4px solid var(--c);
+  }
+  .pos-row.head { background: none; border-left-color: transparent; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; padding-top: 0; padding-bottom: 0; }
+  .pos-row .num { font-family: var(--mono); text-align: right; }
+  .pos-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bucket { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; margin-left: 4px; vertical-align: middle; white-space: nowrap; }
+  .bucket.lang { background: rgba(54, 214, 255, .15); color: var(--investor); }
+  .bucket.trade { background: rgba(255, 77, 210, .15); color: #ff8be3; }
+  .positions .empty { color: var(--muted); font-style: italic; font-size: 14px; padding: 6px 2px; }
+  .zone-info { margin-top: 10px; font-size: 13px; color: var(--muted); padding: 8px 10px; border-radius: 10px; border: 1px dashed var(--line); }
+  .zone-info b { color: var(--text); }
+
+  /* ---------- Handel in der Firmen-Karte ---------- */
+  .trade {
+    margin-top: 12px; padding: 12px; border-radius: 14px;
+    background: rgba(0,0,0,.28); border: 1px solid var(--line);
+    display: grid; gap: 10px;
+  }
+  .trade-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .trade-row[hidden] { display: none; }
+  .trade-row .own, .trade-row .cost { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-left: auto; text-align: right; }
+  .trade-row .cost b { color: var(--text); }
+  .seg { display: inline-flex; background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
+  .seg button {
+    min-height: 44px; padding: 0 12px; border: 0; border-radius: 9px; cursor: pointer;
+    background: transparent; color: var(--muted); font-weight: 800; font-size: 14px;
+  }
+  .seg button[aria-pressed="true"] { background: var(--sc); color: #07091a; }
+  .seg button[data-depot="trader"], .seg button[data-mode="trade"] { --sc: var(--trader); }
+  .seg button[data-depot="investor"], .seg button[data-mode="lang"] { --sc: var(--investor); }
+  .stepper { display: inline-flex; align-items: center; gap: 4px; }
+  .stepper button {
+    min-width: 44px; min-height: 44px; border-radius: 10px; cursor: pointer;
+    background: var(--card2); border: 1px solid var(--line); font-weight: 900; font-size: 18px;
+  }
+  .stepper button.wide { font-size: 14px; padding: 0 10px; }
+  .stepper .q { min-width: 48px; text-align: center; font-family: var(--mono); font-size: 20px; font-weight: 800; }
+  .trade-row.btns .btn { flex: 1; min-height: 52px; }
+  .btn-buy { background: linear-gradient(135deg, #2bff88, #00c2a8); color: #04140c; box-shadow: 0 6px 22px rgba(43, 255, 136, .25); }
+  .btn-sell { background: linear-gradient(135deg, #ff4d6d, #ff7a45); color: #1a0508; box-shadow: 0 6px 22px rgba(255, 77, 109, .25); }
+  .zone-meter { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-left: auto; }
+  .zone-meter .track { width: 90px; height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .zone-meter .track i { display: block; height: 100%; background: var(--trader); border-radius: 999px; }
+  .zone-meter.full .track i { background: var(--accent); }
+
+  /* ---------- Freundliche Hinweise (Dialog + Toast) ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px;
+    background: rgba(5, 7, 18, .72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  .overlay[hidden] { display: none; }
+  .modal {
+    width: min(520px, 100%); max-height: 90vh; overflow: auto;
+    background: linear-gradient(180deg, var(--card2), var(--card));
+    border: 2px solid var(--accent2); border-radius: 22px; padding: 20px;
+    box-shadow: 0 0 40px rgba(0, 229, 255, .3); animation: pop .25s ease;
+  }
+  .m-sim { display: inline-block; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; background: var(--accent); color: #111; padding: 3px 8px; border-radius: 6px; }
+  .m-icon { font-size: 44px; margin-top: 8px; }
+  .modal h3 { margin: 4px 0 8px; font-size: 21px; }
+  .m-body { color: #c3c9ee; font-size: 16px; }
+  .m-body p { margin: 8px 0; }
+  .m-body b { color: var(--text); }
+  .m-why { background: rgba(255,255,255,.04); border-radius: 12px; padding: 10px 12px; }
+  .m-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .m-actions .btn { flex: 1 1 auto; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 90;
+    transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    background: var(--card2); border: 1px solid var(--up); color: var(--text);
+    padding: 12px 18px; border-radius: 14px; font-weight: 700; max-width: calc(100% - 32px);
+    box-shadow: 0 8px 30px rgba(0,0,0,.5); transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px 40px; }
+
+  @media (max-width: 860px) {
+    .depots { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 700px) {
+    .logo { font-size: 18px; width: 100%; }
+    .btn { font-size: 15px; padding: 0 14px; }
+    .duel { grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 6px 12px 8px; }
+    .duel-mid { grid-column: 1 / -1; grid-row: 2; }
+    .duel-side .d-val { font-size: 15px; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .stat.total { grid-column: 1 / -1; }
+  }
+  @media (max-width: 380px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky">
+<div class="sim-banner" role="note">⚠ Simulation <small>– erfundene Kurse, keine echten Daten, keine Anlageberatung</small></div>
+
+<header class="top">
+  <div class="logo">BÖRSEN-DUELL<span>v0.2 · Trader gegen Investor</span></div>
+  <div class="week-box">Woche <b id="week">0</b></div>
+  <div class="rate-box" title="Leitzins der Zentralbank (simuliert)">Zins <b id="rate">4,0 %</b></div>
+  <button class="btn btn-ghost" id="btnExp" aria-pressed="true">💡 Erklärungen</button>
+  <button class="btn btn-ghost" id="btnReset">↺ Neustart</button>
+  <button class="btn btn-ghost" id="btnTen">⏩ 10 Wochen</button>
+  <button class="btn btn-primary" id="btnNext">Nächste Woche ▶</button>
+</header>
+
+<div class="duel" aria-live="polite">
+  <div class="duel-side trader">
+    <div class="d-name">⚡ Trader</div>
+    <div class="d-val" id="dTraderVal"></div>
+    <div class="d-pct" id="dTraderPct"></div>
+  </div>
+  <div class="duel-mid">
+    <div class="duel-bar" aria-hidden="true"><div class="fill" id="duelFill"></div><div class="mid"></div></div>
+    <div class="duel-lead" id="duelLead" title="Vorsprung in € und in Prozent des Startgelds (10.000 €)"></div>
+  </div>
+  <div class="duel-side investor">
+    <div class="d-name">Investor 🌳</div>
+    <div class="d-val" id="dInvestorVal"></div>
+    <div class="d-pct" id="dInvestorPct"></div>
+  </div>
+</div>
+</div>
+
+<main>
+  <details class="help">
+    <summary>❓ So funktioniert dieser Markt</summary>
+    <div class="body">
+      <p><b>Langfristig</b> zählt, wie gut eine Firma wirklich ist: Umsatz, Gewinn, Wachstum und Schulden ergeben den <b>„Wert laut Kennzahlen“</b> (gestrichelte Linie im Chart). Der Kurs wird wie von einem Gummiband immer wieder zu dieser Linie gezogen.</p>
+      <p><b>Kurzfristig</b> springt der Kurs durch Zufall und News hin und her. Manche News ändern nur die <b>Stimmung</b> – dieser Effekt verpufft meist wieder. Andere News ändern die <b>Kennzahlen</b> – dann verschiebt sich auch der Wert der Firma dauerhaft.</p>
+      <p><b>Schwankung:</b> Große, etablierte Firmen wie Google bewegen sich eher <b>ruhig</b>. NVIDIA und junge Start-ups springen viel <b>stärker</b> hoch und runter – mehr Chance, aber auch mehr Risiko.</p>
+      <p><b>Das Duell:</b> Du führst zwei Depots mit je 10.000 € Spielgeld. Im <b>⚡ Trader-Depot</b> kaufst und verkaufst du kurzfristig, so oft du willst. Im <b>🌳 Investor-Depot</b> kaufst du Firmen für lange Zeit – nur eine kleine <b>Trading-Zone</b> (höchstens 15 % des Depots pro Firma) ist für kurze Trades da. Oben siehst du, welche Strategie gerade vorne liegt.</p>
+      <p>Alle Zahlen sind erfunden bzw. stark vereinfacht. Google und NVIDIA sind hier nur <b>simulierte</b> Versionen der echten Firmen, ihre Kennzahlen sind <b>ungefähre Werte</b>.</p>
+    </div>
+  </details>
+
+  <section class="depots" id="depots"></section>
+
+  <section class="news" aria-live="polite">
+    <h2 id="newsTitle">📰 News dieser Woche</h2>
+    <ul id="newsNow"></ul>
+    <div class="legend-tags">
+      <span><span class="tag stimmung">Stimmung</span> wirkt nur kurz</span>
+      <span><span class="tag kennzahlen">Kennzahlen</span> wirkt langfristig</span>
+      <span><span class="tag zahlen">Quartalszahlen</span> Firma zeigt ihre Zahlen</span>
+    </div>
+    <details class="news-old">
+      <summary>Ältere News anzeigen</summary>
+      <ul id="newsOld"></ul>
+    </details>
+  </section>
+
+  <section class="grid" id="grid"></section>
+</main>
+
+<footer>
+  Börsen-Duell ist eine <b>Simulation</b> zum Lernen. Alle Kurse und Kennzahlen sind erfunden oder vereinfacht.<br>
+  Keine echten Kursdaten · Keine Anlageberatung · Keine Firmenlogos.
+</footer>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <span class="m-sim">Simulation</span>
+    <div class="m-icon" id="mIcon" aria-hidden="true"></div>
+    <h3 id="mTitle"></h3>
+    <div class="m-body" id="mBody"></div>
+    <div class="m-actions" id="mActions"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   Hilfsfunktionen
+   ========================================================= */
+const rand = Math.random;
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = rand();
+  while (v === 0) v = rand();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const pick = arr => arr[Math.floor(rand() * arr.length)];
+
+const nf = (d) => new Intl.NumberFormat("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const nf0 = nf(0), nf1 = nf(1), nf2 = nf(2);
+const fmtEUR = x => nf2.format(x) + " €";
+const fmtPct = (x, d = 1) => (x >= 0 ? "+" : "") + nf(d).format(x * 100) + " %";
+const fmtMrd = x => (Math.abs(x) < 10 ? nf2 : nf1).format(x) + " Mrd. €";
+
+/* =========================================================
+   Firmen (Startwerte – alles simuliert)
+   revenue = Umsatz pro Jahr (Mrd. €), margin = Gewinnmarge,
+   growth = Umsatzwachstum pro Jahr, debt = Schulden (Mrd. €),
+   shares = Anzahl Aktien (Mrd.), vol = Zufalls-Schwankung pro Woche,
+   beta = wie stark die Firma die Bewegung des Gesamtmarkts mitmacht,
+   newsMult = wie heftig der Kurs auf News reagiert, volType = Anzeige
+   ========================================================= */
+const COMPANY_DEFS = [
+  { id: "goog", name: "Google", sector: "Suchmaschine & Werbung", icon: "🔎", color: "#4d9bff", real: true,
+    revenue: 340, margin: .28, mTarget: .27, growth: .12, gTarget: .09, debt: 25, shares: 12.2,
+    vol: .014, beta: .8, newsMult: .6, volType: "ruhig" },
+  { id: "nvda", name: "NVIDIA", sector: "Computer-Chips für KI & Games", icon: "🧠", color: "#76e04a", real: true,
+    revenue: 150, margin: .52, mTarget: .45, growth: .45, gTarget: .10, debt: 9, shares: 24.4,
+    vol: .058, beta: 1.6, newsMult: 1.4, volType: "wild" },
+  { id: "solar", name: "SolarWelle", sector: "Start-up · Solaranlagen fürs Dach", icon: "☀️", color: "#ffc83d", real: false,
+    revenue: 6, margin: .07, mTarget: .08, growth: .22, gTarget: .14, debt: 5, shares: .1,
+    vol: .068, beta: 1.3, newsMult: 1.5, volType: "wild" },
+  { id: "pizza", name: "PizzaRakete", sector: "Start-up · Essens-Lieferdienst per App", icon: "🍕", color: "#ff5d73", real: false,
+    revenue: 2.5, margin: -.05, mTarget: .06, mSpeed: .008, growth: .35, gTarget: .12, debt: 2, shares: .1,
+    vol: .082, beta: 1.4, newsMult: 1.6, volType: "wild" },
+  { id: "knusper", name: "KnusperKorn", sector: "Müsli & Frühstück", icon: "🥣", color: "#c08bff", real: false,
+    revenue: 45, margin: .09, mTarget: .09, growth: .03, gTarget: .03, debt: 18, shares: .8,
+    vol: .018, beta: .6, newsMult: .7, volType: "ruhig" },
+];
+const VOL_LABEL = { ruhig: "🌊 schwankt ruhig", mittel: "〰️ schwankt mittel", wild: "🎢 schwankt stark" };
+
+/* =========================================================
+   News-Ereignisse
+   kind: "stimmung" (nur kurzfristig) | "kennzahlen" (verändert Fundament)
+   shock: sofortiger Kurssprung, eff: Änderung an den Kennzahlen
+   ========================================================= */
+const GENERIC_EVENTS = [
+  { t: "{n} stellt ein neues Produkt vor – die Kunden sind begeistert", shock: .06, eff: { growth: .03 }, kind: "kennzahlen" },
+  { t: "Gerücht: {n} soll von einer anderen Firma gekauft werden", shock: .08, kind: "stimmung" },
+  { t: "Der Chef von {n} tritt überraschend zurück", shock: -.07, kind: "stimmung" },
+  { t: "Ein großer Kunde verlässt {n}", shock: -.06, eff: { growth: -.03 }, kind: "kennzahlen" },
+  { t: "{n} spart Kosten und arbeitet effizienter", shock: .03, eff: { margin: .02 }, kind: "kennzahlen" },
+  { t: "{n} muss eine hohe Strafe zahlen", shock: -.05, eff: { debtPct: .05 }, kind: "kennzahlen" },
+  { t: "Influencer feiern {n} in den sozialen Medien", shock: .10, kind: "stimmung" },
+  { t: "Technik-Panne bei {n} – Kunden sind verärgert", shock: -.05, eff: { margin: -.01 }, kind: "kennzahlen" },
+  { t: "Ein Experte im Fernsehen: „{n} ist viel zu teuer!“", shock: -.05, kind: "stimmung" },
+];
+const SPECIFIC_EVENTS = {
+  goog: [
+    { t: "Google gewinnt einen riesigen neuen Werbekunden", shock: .03, eff: { growth: .015 }, kind: "kennzahlen" },
+    { t: "Gericht prüft, ob Google zu mächtig ist", shock: -.05, kind: "stimmung" },
+  ],
+  nvda: [
+    { t: "KI-Boom: Alle wollen Chips von NVIDIA", shock: .08, eff: { growth: .04 }, kind: "kennzahlen" },
+    { t: "Neue Exportregeln bremsen den Chip-Verkauf von NVIDIA", shock: -.07, eff: { growth: -.03 }, kind: "kennzahlen" },
+    { t: "Gamer stehen Schlange für die neue NVIDIA-Grafikkarte", shock: .04, kind: "stimmung" },
+  ],
+  solar: [
+    { t: "Neues Förderprogramm für Solardächer", shock: .07, eff: { growth: .04 }, kind: "kennzahlen" },
+    { t: "Billige Solarmodule aus dem Ausland drücken die Preise", shock: -.06, eff: { margin: -.02 }, kind: "kennzahlen" },
+    { t: "Sonnigster Sommer seit Jahren – alle reden über Solar", shock: .06, kind: "stimmung" },
+  ],
+  pizza: [
+    { t: "Regen-Wochenende: Rekord-Bestellungen bei PizzaRakete", shock: .05, kind: "stimmung" },
+    { t: "PizzaRakete braucht frisches Geld und nimmt einen Kredit auf", shock: -.04, eff: { debtPct: .15 }, kind: "kennzahlen" },
+    { t: "PizzaRakete verdient in der ersten Stadt Geld", shock: .06, eff: { margin: .02 }, kind: "kennzahlen" },
+  ],
+  knusper: [
+    { t: "Getreidepreise steigen – Zutaten für KnusperKorn werden teurer", shock: -.03, eff: { margin: -.01 }, kind: "kennzahlen" },
+    { t: "KnusperKorn-Müsli wird Testsieger", shock: .04, eff: { growth: .01 }, kind: "kennzahlen" },
+  ],
+};
+const MARKET_EVENTS = [
+  { t: "Die Zentralbank erhöht die Zinsen – Schulden werden teurer", shock: -.03, rate: .01, kind: "kennzahlen" },
+  { t: "Die Zentralbank senkt die Zinsen – Schulden werden billiger", shock: .03, rate: -.01, kind: "kennzahlen" },
+  { t: "Angst vor einer Wirtschaftskrise – Panik an der Börse", shock: -.07, kind: "stimmung" },
+  { t: "Super Stimmung: Die Börse feiert neue Rekorde", shock: .04, kind: "stimmung" },
+  { t: "Tech-Aktien im Höhenflug", shock: .05, only: ["goog", "nvda"], kind: "stimmung" },
+];
+
+/* =========================================================
+   Markt-Engine
+   ========================================================= */
+const PULL = 0.04;       // wie stark der Kurs pro Woche zum Kennzahlen-Wert gezogen wird
+const MARKET_VOL = 0.012; // gemeinsame Schwankung aller Aktien
+const P_MARKET_EVENT = 0.08;
+const P_COMPANY_EVENT = 0.07;
+const PREHISTORY = 52;   // Wochen Vorgeschichte, damit die Charts nicht leer sind
+
+let S; // Spielzustand (wird in v0.2 noch nicht gespeichert)
+
+function profit(c) { return c.revenue * c.margin - c.debt * S.rate; }
+function eps(c) { return profit(c) / c.shares; }
+function fairPE(c) {
+  // mehr Wachstum = höheres KGV erlaubt; viele Schulden = Abschlag
+  const base = clamp(8 + c.growth * 100, 6, 50);
+  const debtPenalty = Math.min(0.4, (c.debt / c.revenue) * 0.3);
+  return base * (1 - debtPenalty);
+}
+function fairValue(c) {
+  const byProfit = eps(c) * fairPE(c);
+  const bySales = (c.revenue / c.shares) * clamp(0.2 + c.growth * 2, 0.1, 2); // Firmen mit Verlust: Wert über Umsatz
+  return Math.max(byProfit, bySales, 0.5);
+}
+function price(c) { return Math.exp(c.logP); }
+
+function newGame() {
+  S = { week: -PREHISTORY, rate: 0.04, companies: [], news: [], thisWeek: [] };
+  COMPANY_DEFS.forEach((d, i) => {
+    const c = { ...d, history: [], pendingShock: 0, reportOffset: 2 + i * 2, lastRevenue: d.revenue };
+    c.logP = Math.log(fairValue(c) * (0.85 + rand() * 0.3));
+    S.companies.push(c);
+  });
+  for (let i = 0; i < PREHISTORY; i++) step(true);
+  S.startPrices = Object.fromEntries(S.companies.map(c => [c.id, price(c)]));
+  S.thisWeek = [];
+  S.depots = { trader: newDepot(), investor: newDepot() };
+}
+
+function applyEvent(ev, targets, textName) {
+  const text = ev.t.replace("{n}", textName || "");
+  const strength = 0.7 + rand() * 0.6;
+  targets.forEach(c => {
+    c.pendingShock += ev.shock * strength * c.newsMult;
+    if (ev.eff) {
+      if (ev.eff.growth) c.growth += ev.eff.growth;
+      if (ev.eff.margin) c.margin += ev.eff.margin;
+      if (ev.eff.debtPct) c.debt += c.revenue * ev.eff.debtPct;
+    }
+    c.eventThisWeek = true;
+  });
+  if (ev.rate) S.rate = clamp(S.rate + ev.rate, 0.01, 0.08);
+  return { text, kind: ev.kind, dir: Math.sign(ev.shock), ids: targets.map(c => c.id) };
+}
+
+function step(silent) {
+  S.week++;
+  const events = [];
+  S.companies.forEach(c => { c.pendingShock = 0; c.eventThisWeek = false; });
+
+  // 1) Markt-News
+  if (rand() < P_MARKET_EVENT) {
+    let ev = pick(MARKET_EVENTS);
+    if (ev.rate > 0 && S.rate >= 0.08) ev = MARKET_EVENTS[1];
+    if (ev.rate < 0 && S.rate <= 0.01) ev = MARKET_EVENTS[0];
+    const targets = ev.only ? S.companies.filter(c => ev.only.includes(c.id)) : S.companies;
+    events.push(applyEvent(ev, targets));
+  }
+
+  // 2) Firmen-News
+  S.companies.forEach(c => {
+    if (rand() < P_COMPANY_EVENT) {
+      const specific = SPECIFIC_EVENTS[c.id] || [];
+      const ev = (specific.length && rand() < 0.5) ? pick(specific) : pick(GENERIC_EVENTS);
+      events.push(applyEvent(ev, [c], c.name));
+    }
+  });
+
+  // 3) Quartalszahlen (alle 13 Wochen, je Firma versetzt)
+  S.companies.forEach(c => {
+    if (((S.week + c.reportOffset) % 13 + 13) % 13 === 0) {
+      const surprise = randn() * 0.05;
+      const yoy = Math.pow(c.revenue / c.lastRevenue, 4) - 1; // aufs Jahr hochgerechnet
+      c.lastRevenue = c.revenue;
+      c.growth += surprise * 0.2;
+      c.pendingShock += surprise * c.newsMult;
+      c.eventThisWeek = true;
+      const how = surprise > 0.03 ? "besser als erwartet 🚀" : surprise < -0.03 ? "schlechter als erwartet 😬" : "ungefähr wie erwartet";
+      const p = profit(c);
+      events.push({
+        text: `${c.name} zeigt Quartalszahlen: Umsatz ${fmtPct(yoy, 0)} aufs Jahr gerechnet, ${p >= 0 ? "Gewinn" : "Verlust"} ${fmtMrd(Math.abs(p) / 4)} – ${how}`,
+        kind: "zahlen", dir: Math.sign(surprise), ids: [c.id],
+      });
+    }
+  });
+
+  // 4) Kennzahlen entwickeln sich langsam weiter
+  S.companies.forEach(c => {
+    c.growth += (c.gTarget - c.growth) * 0.01 + randn() * 0.002;
+    c.margin += (c.mTarget - c.margin) * (c.mSpeed || 0.02) + randn() * 0.002;
+    c.growth = clamp(c.growth, -0.15, 0.8);
+    c.margin = clamp(c.margin, -0.3, 0.6);
+    c.revenue *= Math.exp(c.growth / 52 + randn() * 0.003);
+    const p = profit(c);
+    if (p < 0) c.debt += -p / 52;                   // Verluste werden mit Schulden bezahlt
+    else c.debt = Math.max(0, c.debt - p / 52 * 0.2); // ein Teil des Gewinns tilgt Schulden
+  });
+
+  // 5) Kurse: Zug zum Kennzahlen-Wert + Zufall + News
+  const market = randn() * MARKET_VOL;
+  S.companies.forEach(c => {
+    const fv = fairValue(c);
+    c.logP += PULL * (Math.log(fv) - c.logP) + c.beta * market + c.vol * randn() + c.pendingShock;
+    c.logP = Math.max(c.logP, Math.log(0.5));
+    c.history.push({ w: S.week, p: price(c), f: fv, ev: c.eventThisWeek });
+    if (c.history.length > 520) c.history.shift();
+  });
+
+  if (!silent) {
+    events.forEach(e => e.week = S.week);
+    S.thisWeek = events;
+    S.news.unshift(...events);
+    if (S.news.length > 200) S.news.length = 200;
+  }
+}
+
+/* =========================================================
+   Depots: Trader gegen Investor
+   Positionen liegen in "Töpfen": lang = langfristige Investition,
+   trade = kurzfristiger Trade. Das Trader-Depot hat nur Trades.
+   ========================================================= */
+const START_CASH = 10000;
+const ZONE_LIMIT = 0.15; // Investor-Depot: max. Anteil kurzfristiger Trades pro Firma
+const DEPOTS = {
+  trader:   { name: "Trader",   icon: "⚡", color: "var(--trader)",
+              rule: "Kauft und verkauft kurzfristig – so oft und so viel, wie das Bargeld reicht." },
+  investor: { name: "Investor", icon: "🌳", color: "var(--investor)",
+              rule: "Kauft Firmen für lange Zeit. Kurz-Trades nur in der Trading-Zone: höchstens 15 % des Depots pro Firma." },
+};
+const BUCKET = { lang: "🌳 Langfristig", trade: "⚡ Kurz-Trade" };
+
+function newDepot() { return { cash: START_CASH, pos: {}, trades: 0 }; }
+function company(id) { return S.companies.find(c => c.id === id); }
+function getPos(d, id, bucket) { return d.pos[id + ":" + bucket] || { id, bucket, qty: 0, cost: 0 }; }
+function stockValue(d) { return Object.values(d.pos).reduce((s, p) => s + p.qty * price(company(p.id)), 0); }
+function depotValue(d) { return d.cash + stockValue(d); }
+function bucketFor(depotKey) { return depotKey === "trader" ? "trade" : UI.mode; }
+
+function doBuy(depotKey, c, qty, bucket) {
+  const d = S.depots[depotKey], p = price(c), total = qty * p;
+  const key = c.id + ":" + bucket;
+  const pos = d.pos[key] || (d.pos[key] = { id: c.id, bucket, qty: 0, cost: 0 });
+  pos.qty += qty; pos.cost += total;
+  d.cash -= total; d.trades++;
+  afterTrade(`✅ ${qty} × ${c.name} gekauft für ${fmtEUR(total)} (${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name}${depotKey === "investor" ? ", " + BUCKET[bucket] : ""})`);
+}
+
+function doSell(depotKey, c, qty, bucket) {
+  const d = S.depots[depotKey], key = c.id + ":" + bucket, pos = d.pos[key];
+  const total = qty * price(c);
+  pos.cost -= pos.cost * (qty / pos.qty);
+  pos.qty -= qty;
+  if (pos.qty <= 0) delete d.pos[key];
+  d.cash += total; d.trades++;
+  afterTrade(`💶 ${qty} × ${c.name} verkauft für ${fmtEUR(total)} (${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name})`);
+}
+
+// Kauf-Wunsch prüfen – bei Problemen eine freundliche Erklärung statt eines Fehlers
+function tryBuy(depotKey, c, qty, bucket) {
+  const d = S.depots[depotKey], p = price(c), total = qty * p;
+  const canAfford = Math.floor(d.cash / p);
+
+  if (depotKey === "investor" && bucket === "trade") {
+    const limit = ZONE_LIMIT * depotValue(d);
+    const used = getPos(d, c.id, "trade").qty * p;
+    if (used + total > limit + 0.005) {
+      const allowed = Math.max(0, Math.min(canAfford, Math.floor((limit - used) / p)));
+      const actions = [];
+      if (allowed > 0) actions.push({ label: `${allowed} Stück als Trade kaufen`, cls: "btn-buy", fn: () => doBuy(depotKey, c, allowed, "trade") });
+      actions.push({ label: "🌳 Lieber langfristig kaufen", cls: "btn-ghost", fn: () => { setMode("lang"); tryBuy(depotKey, c, qty, "lang"); } });
+      showInfo({
+        icon: "🌳", title: "Kurze Pause – hier gilt die Trading-Zone",
+        html: `<p>Im <b>Investor-Depot</b> dürfen höchstens <b>15 %</b> des Depots als kurzfristiger Trade in <b>eine</b> Firma fließen.
+               Für ${c.name} sind das gerade bis zu <b>${fmtEUR(limit)}</b>${used > 0 ? `, davon nutzt du schon <b>${fmtEUR(used)}</b>` : ""}.</p>
+               <p>Dein Kauf hätte <b>${fmtEUR(total)}</b> gekostet.${allowed > 0 ? ` In die Trading-Zone passen noch <b>${allowed} Stück</b>.` : " Die Trading-Zone für diese Firma ist schon voll."}</p>
+               <p class="m-why">💡 <b>Warum diese Regel?</b> Ein Investor setzt auf Geduld und Streuung. Die kleine Trading-Zone ist Platz zum Ausprobieren – der große Rest darf in Ruhe mit den Firmen wachsen.</p>`,
+        actions,
+      });
+      return;
+    }
+  }
+
+  if (total > d.cash + 0.005) {
+    const actions = [];
+    if (canAfford > 0) actions.push({ label: `${canAfford} Stück kaufen`, cls: "btn-buy", fn: () => tryBuy(depotKey, c, canAfford, bucket) });
+    showInfo({
+      icon: "💰", title: "Das Bargeld reicht noch nicht ganz",
+      html: `<p>Für ${qty} × ${c.name} bräuchtest du <b>${fmtEUR(total)}</b>. Im ${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name}-Depot sind gerade <b>${fmtEUR(d.cash)}</b> Bargeld.</p>
+             <p>${canAfford > 0 ? `Du kannst bis zu <b>${canAfford} Stück</b> kaufen.` : "Tipp: Verkaufe zuerst etwas – dann ist wieder Geld für neue Käufe da."}</p>`,
+      actions,
+    });
+    return;
+  }
+
+  doBuy(depotKey, c, qty, bucket);
+}
+
+function trySell(depotKey, c, qty, bucket) {
+  const d = S.depots[depotKey], have = getPos(d, c.id, bucket).qty;
+  if (have === 0) {
+    const other = bucket === "lang" ? "trade" : "lang";
+    const otherQty = depotKey === "investor" ? getPos(d, c.id, other).qty : 0;
+    const actions = otherQty > 0
+      ? [{ label: `Zu ${BUCKET[other]} wechseln`, cls: "btn-ghost", fn: () => setMode(other) }]
+      : [];
+    showInfo({
+      icon: "📦", title: "Hier gibt es noch nichts zu verkaufen",
+      html: `<p>Im ${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name}-Depot${depotKey === "investor" ? ` (Bereich <b>${BUCKET[bucket]}</b>)` : ""} liegen noch keine ${c.name}-Aktien.</p>
+             ${otherQty > 0 ? `<p>Im Bereich <b>${BUCKET[other]}</b> hast du aber <b>${otherQty} Stück</b>.</p>` : "<p>Kaufe zuerst ein paar Aktien – dann kannst du sie später wieder verkaufen.</p>"}`,
+      actions,
+    });
+    return;
+  }
+  if (qty > have) {
+    showInfo({
+      icon: "📦", title: `Du hast ${have} Stück davon`,
+      html: `<p>Verkaufen kannst du nur, was im Depot liegt: <b>${have} × ${c.name}</b>.</p>`,
+      actions: [{ label: `Alle ${have} verkaufen`, cls: "btn-sell", fn: () => doSell(depotKey, c, have, bucket) }],
+    });
+    return;
+  }
+  doSell(depotKey, c, qty, bucket);
+}
+
+/* =========================================================
+   Darstellung
+   ========================================================= */
+const UI = { depot: "trader", mode: "lang", qty: {} };
+const EXPLAIN = {
+  umsatz: "Alles Geld, das die Firma in einem Jahr einnimmt – wie die Ladenkasse am Jahresende.",
+  gewinn: "Was übrig bleibt, wenn alle Kosten bezahlt sind. Nur Gewinn macht eine Firma auf Dauer mehr wert.",
+  schulden: "Geliehenes Geld. Ein bisschen ist okay – zu viel ist gefährlich, weil Zinsen den Gewinn auffressen.",
+  kgv: "Kurs-Gewinn-Verhältnis: Wie viele Jahre Gewinn du für die Aktie bezahlst. Hoch = teuer oder alle erwarten viel Wachstum.",
+};
+
+const grid = document.getElementById("grid");
+const cardEls = {};
+
+function buildCards() {
+  grid.innerHTML = "";
+  S.companies.forEach(c => {
+    const el = document.createElement("article");
+    el.className = "card";
+    el.dataset.id = c.id;
+    el.style.setProperty("--c", c.color);
+    const approx = c.real ? "≈ " : "";
+    el.innerHTML = `
+      <div class="card-head">
+        <div class="icon" aria-hidden="true">${c.icon}</div>
+        <div>
+          <div class="name">${c.name}<span class="badge">${c.real ? "simuliert" : "erfunden"}</span></div>
+          <div class="sector">${c.sector}</div>
+          <span class="vol vol-${c.volType}">${VOL_LABEL[c.volType]}</span>
+        </div>
+        <div class="price-wrap">
+          <div class="price" data-k="price"></div>
+          <div class="chg" data-k="chg"></div>
+          <div class="chg" data-k="chgStart" style="font-size:12px"></div>
+        </div>
+      </div>
+      <div class="chart-box"><canvas class="chart" aria-label="Kursverlauf ${c.name}"></canvas></div>
+      <div class="chart-legend">
+        <span><i style="background:${c.color}"></i>Kurs</span>
+        <span><i class="dash"></i>Wert laut Kennzahlen</span>
+        <span><i class="dot"></i>News</span>
+      </div>
+      <div class="trade">
+        <div class="trade-row">
+          <div class="seg" role="group" aria-label="Depot wählen">
+            <button data-depot="trader">⚡ Trader</button><button data-depot="investor">🌳 Investor</button>
+          </div>
+          <div class="own" data-k="own"></div>
+        </div>
+        <div class="trade-row" data-k="modeRow">
+          <div class="seg" role="group" aria-label="Art des Kaufs">
+            <button data-mode="lang">🌳 Langfristig</button><button data-mode="trade">⚡ Kurz-Trade</button>
+          </div>
+          <div class="zone-meter" data-k="zone"></div>
+        </div>
+        <div class="trade-row">
+          <div class="stepper">
+            <button data-act="minus" aria-label="Eine Aktie weniger">−</button>
+            <span class="q" data-k="qty"></span>
+            <button data-act="plus" aria-label="Eine Aktie mehr">+</button>
+            <button class="wide" data-act="plus10">+10</button>
+          </div>
+          <div class="cost" data-k="cost"></div>
+        </div>
+        <div class="trade-row btns">
+          <button class="btn btn-buy" data-act="buy">Kaufen</button>
+          <button class="btn btn-sell" data-act="sell">Verkaufen</button>
+        </div>
+      </div>
+      <div class="metrics">
+        ${c.real ? `<div class="approx">≈ <b>Ungefähre Werte</b> – grob an der echten Firma orientiert, stark vereinfacht und im Spiel simuliert weiterentwickelt.</div>` : ""}
+        <div class="metric"><div class="lbl">Umsatz / Jahr</div><div class="val" data-k="umsatz"></div><div class="sub" data-k="wachstum"></div><div class="exp">${EXPLAIN.umsatz}</div></div>
+        <div class="metric"><div class="lbl">Gewinn / Jahr</div><div class="val" data-k="gewinn"></div><div class="sub" data-k="marge"></div><div class="exp">${EXPLAIN.gewinn}</div></div>
+        <div class="metric"><div class="lbl">Schulden</div><div class="val" data-k="schulden"></div><div class="sub" data-k="zinsen"></div><div class="exp">${EXPLAIN.schulden}</div></div>
+        <div class="metric"><div class="lbl">KGV</div><div class="val" data-k="kgv"></div><div class="sub" data-k="kgvsub"></div><div class="exp">${EXPLAIN.kgv}</div></div>
+      </div>
+      <div class="verdict" data-k="verdict"></div>`;
+    grid.appendChild(el);
+    const q = k => el.querySelector(`[data-k="${k}"]`);
+    cardEls[c.id] = { el, canvas: el.querySelector("canvas"), q, approx };
+  });
+}
+
+function verdictText(c) {
+  const diff = price(c) / fairValue(c) - 1;
+  let s;
+  if (diff > 0.15) s = `🔥 Der Kurs liegt <b>${nf0.format(diff * 100)} % über</b> dem Kennzahlen-Wert – die Aktie ist gerade eher teuer.`;
+  else if (diff < -0.15) s = `🧊 Der Kurs liegt <b>${nf0.format(-diff * 100)} % unter</b> dem Kennzahlen-Wert – die Aktie ist gerade eher günstig.`;
+  else s = `⚖️ Kurs und Kennzahlen-Wert liegen nah beieinander – <b>fair bewertet</b>.`;
+  const notes = [];
+  const p = profit(c);
+  if (p < 0) notes.push("Die Firma macht noch Verlust.");
+  if (c.growth > 0.25) notes.push("Sie wächst sehr schnell.");
+  else if (c.growth < 0.02) notes.push("Sie wächst kaum.");
+  if (p > 0 && c.debt / p > 4) notes.push("Die Schulden sind hoch im Vergleich zum Gewinn.");
+  if (p <= 0 && c.debt > c.revenue * 0.8) notes.push("Die Schulden wachsen bedrohlich.");
+  return s + (notes.length ? " " + notes.join(" ") : "");
+}
+
+function render(animate) {
+  document.getElementById("week").textContent = S.week;
+  document.getElementById("rate").textContent = nf1.format(S.rate * 100) + " %";
+
+  S.companies.forEach(c => {
+    const { q, canvas } = cardEls[c.id];
+    const h = c.history;
+    const now = h[h.length - 1].p, prev = h[h.length - 2] ? h[h.length - 2].p : now;
+    const wk = now / prev - 1, since = now / S.startPrices[c.id] - 1;
+    const priceEl = q("price");
+    priceEl.textContent = fmtEUR(now);
+    if (animate) {
+      priceEl.classList.remove("flash-up", "flash-down");
+      void priceEl.offsetWidth;
+      priceEl.classList.add(wk >= 0 ? "flash-up" : "flash-down");
+    }
+    q("chg").textContent = (wk >= 0 ? "▲ " : "▼ ") + fmtPct(wk) + " Woche";
+    q("chg").className = "chg " + (wk >= 0 ? "up" : "down");
+    q("chgStart").textContent = fmtPct(since) + " seit Start";
+    q("chgStart").className = "chg " + (since >= 0 ? "up" : "down");
+
+    const p = profit(c), e = eps(c), ap = cardEls[c.id].approx;
+    q("umsatz").textContent = ap + fmtMrd(c.revenue);
+    q("wachstum").innerHTML = `Wachstum <span class="${c.growth >= 0 ? "up" : "down"}">${fmtPct(c.growth)}</span> pro Jahr`;
+    q("gewinn").textContent = ap + fmtMrd(p);
+    q("gewinn").className = "val " + (p >= 0 ? "up" : "down");
+    q("marge").textContent = `Von 100 € Umsatz bleiben ${nf0.format(Math.max(-99, (p / c.revenue) * 100))} €`;
+    q("schulden").textContent = ap + fmtMrd(c.debt);
+    q("zinsen").textContent = `Zinsen: ${fmtMrd(c.debt * S.rate)} pro Jahr`;
+    if (e > 0) {
+      const kgv = now / e;
+      q("kgv").textContent = ap + nf1.format(kgv);
+      q("kgvsub").textContent = kgv > 35 ? "sehr hoch" : kgv > 20 ? "eher hoch" : kgv > 10 ? "normal" : "niedrig";
+    } else {
+      q("kgv").textContent = "–";
+      q("kgvsub").textContent = "kein Gewinn, kein KGV";
+    }
+    q("verdict").innerHTML = verdictText(c);
+    drawChart(canvas, c);
+  });
+
+  renderNews();
+  renderTrading();
+}
+
+// alles, was sich nach einem Kauf/Verkauf ändert
+function renderTrading() {
+  S.companies.forEach(renderTradePanel);
+  renderDepots();
+  renderDuel();
+}
+
+function renderTradePanel(c) {
+  const { q, el } = cardEls[c.id];
+  const d = S.depots[UI.depot], p = price(c);
+  const qty = UI.qty[c.id] || 1;
+  el.querySelectorAll("[data-depot]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.depot === UI.depot)));
+  el.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === UI.mode)));
+  q("qty").textContent = qty;
+  q("cost").innerHTML = `${qty} × ${fmtEUR(p)}<br>= <b>${fmtEUR(qty * p)}</b>`;
+
+  const isInv = UI.depot === "investor";
+  q("modeRow").hidden = !isInv;
+  if (isInv) {
+    const lang = getPos(d, c.id, "lang").qty, trade = getPos(d, c.id, "trade").qty;
+    q("own").innerHTML = `Im Depot: 🌳 <b>${lang}</b> · ⚡ <b>${trade}</b> Stück`;
+    const share = (trade * p) / depotValue(d);
+    const z = q("zone");
+    z.classList.toggle("full", share >= ZONE_LIMIT - 0.005);
+    z.innerHTML = `<span>Trading-Zone ${nf0.format(share * 100)} % / 15 %</span>
+      <span class="track"><i style="width:${Math.min(100, share / ZONE_LIMIT * 100)}%"></i></span>`;
+  } else {
+    const n = getPos(d, c.id, "trade").qty;
+    q("own").innerHTML = `Im Depot: <b>${n}</b> Stück${n ? ` (${fmtEUR(n * p)})` : ""}`;
+  }
+}
+
+function renderDepots() {
+  const wrap = document.getElementById("depots");
+  wrap.innerHTML = Object.keys(DEPOTS).map(key => {
+    const meta = DEPOTS[key], d = S.depots[key];
+    const total = depotValue(d), res = total - START_CASH;
+    const rows = [];
+    S.companies.forEach(c => ["lang", "trade"].forEach(b => {
+      const pos = d.pos[c.id + ":" + b];
+      if (!pos) return;
+      const val = pos.qty * price(c), gain = val - pos.cost;
+      rows.push(`<div class="pos-row" style="--c:${c.color}">
+        <span class="nm">${c.icon} ${c.name}${key === "investor" ? `<span class="bucket ${b}">${b === "lang" ? "🌳 lang" : "⚡ Trade"}</span>` : ""}</span>
+        <span class="num">${pos.qty}</span>
+        <span class="num">${fmtEUR(val)}</span>
+        <span class="num ${gain >= 0 ? "up" : "down"}">${gain >= 0 ? "+" : ""}${nf2.format(gain)} €<br><small>${fmtPct(gain / pos.cost)}</small></span>
+      </div>`);
+    }));
+    const zone = key === "investor"
+      ? `<div class="zone-info">⚡ <b>Trading-Zone:</b> pro Firma höchstens 15 % des Depots als Kurz-Trade – gerade also bis zu <b>${fmtEUR(ZONE_LIMIT * total)}</b> je Firma.</div>`
+      : "";
+    return `<article class="depot ${UI.depot === key ? "active" : ""}" style="--dc:${meta.color}">
+      <div class="depot-head">
+        <h2>${meta.icon} ${meta.name}-Depot</h2>
+        <button class="btn btn-ghost" data-depot="${key}">${UI.depot === key ? "✔ Du handelst hier" : "Hier handeln"}</button>
+        <div class="rule">${meta.rule}</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="lbl">Bargeld</div><div class="val">${fmtEUR(d.cash)}</div></div>
+        <div class="stat"><div class="lbl">In Aktien</div><div class="val">${fmtEUR(stockValue(d))}</div></div>
+        <div class="stat total"><div class="lbl">Gesamtwert</div><div class="val">${fmtEUR(total)}</div></div>
+      </div>
+      <div class="result-line ${res >= 0 ? "up" : "down"}">Ergebnis seit Start: ${res >= 0 ? "+" : ""}${fmtEUR(res)} (${fmtPct(res / START_CASH)}) · ${d.trades} Käufe/Verkäufe</div>
+      <div class="positions">
+        ${rows.length
+          ? `<div class="pos-row head"><span>Firma</span><span class="num">Stück</span><span class="num">Wert</span><span class="num">Gewinn</span></div>` + rows.join("")
+          : `<div class="empty">Noch keine Aktien. Wähle unten eine Firma und tippe auf „Kaufen“.</div>`}
+      </div>
+      ${zone}
+    </article>`;
+  }).join("");
+}
+
+function renderDuel() {
+  const t = depotValue(S.depots.trader), i = depotValue(S.depots.investor);
+  const rt = t / START_CASH - 1, ri = i / START_CASH - 1;
+  const set = (id, txt, cls) => { const e = document.getElementById(id); e.textContent = txt; if (cls) e.className = "d-pct " + cls; };
+  set("dTraderVal", fmtEUR(t));
+  set("dInvestorVal", fmtEUR(i));
+  set("dTraderPct", fmtPct(rt, 2), rt >= 0 ? "up" : "down");
+  set("dInvestorPct", fmtPct(ri, 2), ri >= 0 ? "up" : "down");
+  document.getElementById("duelFill").style.width = (50 + clamp((rt - ri) * 250, -46, 46)) + "%";
+  const diff = t - i, lead = document.getElementById("duelLead");
+  if (Math.abs(diff) < 0.005) {
+    lead.textContent = "⚖️ Gleichstand";
+    lead.style.color = "";
+  } else {
+    const key = diff > 0 ? "trader" : "investor", m = DEPOTS[key];
+    lead.textContent = `${m.icon} ${m.name} liegt vorne: +${fmtEUR(Math.abs(diff))} · +${nf2.format(Math.abs(diff) / START_CASH * 100)} %`;
+    lead.style.color = m.color;
+  }
+}
+
+function setDepot(key) { UI.depot = key; renderTrading(); }
+function setMode(mode) { UI.mode = mode; S.companies.forEach(renderTradePanel); }
+
+function afterTrade(msg) {
+  renderTrading();
+  toast(msg);
+}
+
+/* ---------- freundlicher Hinweis-Dialog ---------- */
+const overlay = document.getElementById("overlay");
+function showInfo({ icon, title, html, actions = [] }) {
+  document.getElementById("mIcon").textContent = icon;
+  document.getElementById("mTitle").textContent = title;
+  document.getElementById("mBody").innerHTML = html;
+  const box = document.getElementById("mActions");
+  box.innerHTML = "";
+  [...actions, { label: "Alles klar 👍", cls: "btn-primary" }].forEach(a => {
+    const b = document.createElement("button");
+    b.className = "btn " + a.cls;
+    b.textContent = a.label;
+    b.addEventListener("click", () => { closeInfo(); if (a.fn) a.fn(); });
+    box.appendChild(b);
+  });
+  overlay.hidden = false;
+  box.firstChild.focus();
+}
+function closeInfo() { overlay.hidden = true; }
+overlay.addEventListener("click", e => { if (e.target === overlay) closeInfo(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !overlay.hidden) closeInfo(); });
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function renderNews() {
+  const now = document.getElementById("newsNow");
+  const old = document.getElementById("newsOld");
+  const title = document.getElementById("newsTitle");
+  title.textContent = "📰 News dieser Woche";
+  const li = (n, showWeek) => `<li class="${n.dir > 0 ? "pos" : n.dir < 0 ? "neg" : ""}">
+      ${showWeek ? `<span class="wk">W${n.week}</span>` : ""}<span class="tag ${n.kind}">${n.kind === "zahlen" ? "Quartalszahlen" : n.kind === "stimmung" ? "Stimmung" : "Kennzahlen"}</span>
+      <span>${n.text}</span></li>`;
+  if (S.week === 0) {
+    now.innerHTML = `<li class="empty">Der Markt ist bereit. Tippe auf <b>„Nächste Woche ▶“</b> und schau, was passiert!</li>`;
+  } else if (!S.thisWeek.length) {
+    now.innerHTML = `<li class="empty">Ruhige Woche – keine besonderen News. Die Kurse bewegen sich nur durch Zufall und die Kennzahlen.</li>`;
+  } else {
+    const multi = S.thisWeek.some(n => n.week !== S.week);
+    title.textContent = multi ? "📰 News der letzten 10 Wochen" : "📰 News dieser Woche";
+    now.innerHTML = S.thisWeek.map(n => li(n, multi)).join("");
+  }
+  const older = S.news.filter(n => !S.thisWeek.includes(n)).slice(0, 60);
+  old.innerHTML = older.length
+    ? older.map(n => li(n, true)).join("")
+    : `<li class="empty">Noch keine älteren News.</li>`;
+}
+
+function drawChart(canvas, c) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  if (!W || !H) return;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const data = c.history.slice(-104);
+  const padL = 6, padR = 58, padT = 10, padB = 18;
+  let lo = Infinity, hi = -Infinity;
+  data.forEach(d => { lo = Math.min(lo, d.p, d.f); hi = Math.max(hi, d.p, d.f); });
+  const span = hi - lo || 1;
+  lo -= span * 0.08; hi += span * 0.08;
+  const x = i => padL + (i / Math.max(1, data.length - 1)) * (W - padL - padR);
+  const y = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+
+  // Raster
+  ctx.strokeStyle = "rgba(255,255,255,.06)";
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#8790c4";
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.textBaseline = "middle";
+  for (let k = 0; k <= 3; k++) {
+    const v = lo + (hi - lo) * (k / 3);
+    const yy = Math.round(y(v)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+    ctx.fillText(nf(v < 10 ? 2 : 0).format(v), W - padR + 6, yy);
+  }
+
+  // Start-Markierung (Woche 0)
+  const i0 = data.findIndex(d => d.w === 0);
+  if (i0 > 0) {
+    ctx.strokeStyle = "rgba(255,204,0,.35)";
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(x(i0), padT); ctx.lineTo(x(i0), H - padB); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(255,204,0,.75)";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("Start", Math.min(x(i0) + 4, W - padR - 34), H - 4);
+  }
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "#8790c4";
+  ctx.fillText(data.length >= 104 ? "letzte 2 Jahre" : `${data.length} Wochen`, padL, H - 4);
+
+  // Fläche unter dem Kurs
+  const grad = ctx.createLinearGradient(0, padT, 0, H - padB);
+  grad.addColorStop(0, c.color + "55");
+  grad.addColorStop(1, c.color + "00");
+  ctx.beginPath();
+  data.forEach((d, i) => i ? ctx.lineTo(x(i), y(d.p)) : ctx.moveTo(x(i), y(d.p)));
+  ctx.lineTo(x(data.length - 1), H - padB);
+  ctx.lineTo(x(0), H - padB);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Kennzahlen-Wert (gestrichelt)
+  ctx.strokeStyle = "rgba(201,207,245,.7)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  data.forEach((d, i) => i ? ctx.lineTo(x(i), y(d.f)) : ctx.moveTo(x(i), y(d.f)));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Kurs
+  ctx.strokeStyle = c.color;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = "round";
+  ctx.shadowColor = c.color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  data.forEach((d, i) => i ? ctx.lineTo(x(i), y(d.p)) : ctx.moveTo(x(i), y(d.p)));
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // News-Punkte
+  ctx.fillStyle = "#ffcc00";
+  data.forEach((d, i) => {
+    if (d.ev) { ctx.beginPath(); ctx.arc(x(i), y(d.p), 3, 0, Math.PI * 2); ctx.fill(); }
+  });
+
+  // aktueller Kurs
+  const last = data[data.length - 1];
+  ctx.fillStyle = c.color;
+  ctx.beginPath(); ctx.arc(x(data.length - 1), y(last.p), 4.5, 0, Math.PI * 2); ctx.fill();
+}
+
+/* =========================================================
+   Bedienung
+   ========================================================= */
+document.getElementById("btnNext").addEventListener("click", () => { step(false); render(true); });
+document.getElementById("btnTen").addEventListener("click", () => {
+  const collected = [];
+  for (let i = 0; i < 10; i++) { step(false); collected.push(...S.thisWeek); }
+  S.thisWeek = collected;
+  render(true);
+});
+document.getElementById("btnReset").addEventListener("click", () => {
+  if (confirm("Neues Spiel starten? Markt und beide Depots beginnen wieder bei 10.000 €.")) {
+    UI.qty = {};
+    newGame(); buildCards(); render(false);
+  }
+});
+grid.addEventListener("click", e => {
+  const b = e.target.closest("button");
+  const card = e.target.closest(".card");
+  if (!b || !card) return;
+  const c = company(card.dataset.id);
+  if (b.dataset.depot) return setDepot(b.dataset.depot);
+  if (b.dataset.mode) return setMode(b.dataset.mode);
+  const qty = UI.qty[c.id] || 1;
+  switch (b.dataset.act) {
+    case "minus": UI.qty[c.id] = Math.max(1, qty - 1); break;
+    case "plus": UI.qty[c.id] = Math.min(9999, qty + 1); break;
+    case "plus10": UI.qty[c.id] = Math.min(9999, qty === 1 ? 10 : qty + 10); break;
+    case "buy": return tryBuy(UI.depot, c, qty, bucketFor(UI.depot));
+    case "sell": return trySell(UI.depot, c, qty, bucketFor(UI.depot));
+    default: return;
+  }
+  renderTradePanel(c);
+});
+document.getElementById("depots").addEventListener("click", e => {
+  const b = e.target.closest("button[data-depot]");
+  if (b) setDepot(b.dataset.depot);
+});
+document.getElementById("btnExp").addEventListener("click", e => {
+  const on = document.body.classList.toggle("no-exp");
+  e.currentTarget.setAttribute("aria-pressed", String(!on));
+});
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => S.companies.forEach(c => drawChart(cardEls[c.id].canvas, c)), 120);
+});
+
+newGame();
+buildCards();
+render(false);
+</script>
+</body>
+</html>
