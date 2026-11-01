@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0b0e1a">
-<title>Börsen-Duell – Simulation v0.3</title>
+<title>Börsen-Duell – Simulation v0.4</title>
 <style>
   :root {
     --bg: #0b0e1a;
@@ -95,6 +95,8 @@
   .btn-ghost { background: var(--card); border: 1px solid var(--line); color: var(--text); }
   .btn-ghost[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
   .btn-share { background: linear-gradient(135deg, #ffcc00, #ff8a3d); color: #1a1000; box-shadow: 0 6px 22px rgba(255, 204, 0, .25); }
+  .btn-small { min-height: 44px; font-size: 14px; padding: 0 12px; }
+  .week-box small { font-size: 13px; color: var(--muted); font-weight: 700; }
 
   main { max-width: 1400px; margin: 0 auto; padding: 16px; }
 
@@ -107,13 +109,36 @@
   .news h2 { margin: 0 0 8px; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 8px; }
   .news ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .news li {
-    display: flex; gap: 10px; align-items: flex-start;
-    padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.03);
+    display: flex; gap: 10px; align-items: center;
+    padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,.03);
     border-left: 4px solid var(--muted);
     animation: pop .35s ease;
   }
+  .news li[data-nid] { cursor: pointer; min-height: 48px; }
+  .news li[data-nid]:hover { background: rgba(255,255,255,.07); }
   .news li.pos { border-left-color: var(--up); }
   .news li.neg { border-left-color: var(--down); }
+  .news li.unsure { border-left-color: var(--accent); }
+  .news .nt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .news .ap { flex: none; font-family: var(--mono); font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.06); white-space: nowrap; }
+  .news .ap.wait { color: var(--muted); font-weight: 700; }
+  .news .soon { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .sym {
+    display: inline-grid; place-items: center; flex: none;
+    width: 30px; height: 30px; border-radius: 50%;
+    font-weight: 900; font-size: 15px; line-height: 1; color: #07091a;
+  }
+  .sym-up { background: var(--up); box-shadow: 0 0 10px rgba(43,255,136,.5); }
+  .sym-down { background: var(--down); box-shadow: 0 0 10px rgba(255,77,109,.5); }
+  .sym-q { background: var(--accent); box-shadow: 0 0 10px rgba(255,204,0,.5); font-size: 18px; }
+  .sym-eq { background: #e8ebff; box-shadow: 0 0 10px rgba(232,235,255,.4); font-size: 20px; }
+  .sym.big { width: 44px; height: 44px; font-size: 22px; }
+  .upcoming {
+    display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; min-height: 44px; padding: 6px 10px;
+    border-radius: 12px; cursor: pointer; text-align: left; font-size: 14px; font-weight: 700;
+    background: rgba(255, 204, 0, .08); border: 1px dashed rgba(255, 204, 0, .55); color: #ffe37a;
+  }
+  .news .soon .upcoming { width: auto; margin-top: 0; }
   .news .tag {
     flex: none; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
     text-transform: uppercase; letter-spacing: .05em;
@@ -126,7 +151,10 @@
   .news-old { margin-top: 10px; }
   .news-old summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 0; min-height: 36px; display: flex; align-items: center; }
   .news-old ul { margin-top: 8px; max-height: 280px; overflow: auto; }
-  .legend-tags { font-size: 13px; color: var(--muted); margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+  .legend-tags { font-size: 13px; color: var(--muted); margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .legend-tags > span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-tags .sym { width: 22px; height: 22px; font-size: 12px; }
+  .legend-tags .sym-q, .legend-tags .sym-eq { font-size: 14px; }
 
   /* ---------- Hilfe ---------- */
   .help {
@@ -376,6 +404,8 @@
   .m-body { color: #c3c9ee; font-size: 16px; }
   .m-body p { margin: 8px 0; }
   .m-body b { color: var(--text); }
+  .m-body .up { color: var(--up); }
+  .m-body .down { color: var(--down); }
   .m-body ul { margin: 8px 0; padding-left: 20px; }
   .m-body li { margin: 4px 0; }
   .m-why { background: rgba(255,255,255,.04); border-radius: 12px; padding: 10px 12px; }
@@ -391,6 +421,53 @@
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+  /* ---------- Trefferquote ---------- */
+  .hits {
+    background: linear-gradient(180deg, var(--card2), var(--card));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px;
+  }
+  .hits h2 { margin: 0 0 10px; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent2); }
+  .hit-row { display: grid; grid-template-columns: minmax(0, 1.4fr) 2fr auto; gap: 10px; align-items: center; margin: 8px 0; font-size: 14px; font-weight: 700; }
+  .hbar { height: 14px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; position: relative; }
+  .hbar i { display: block; height: 100%; border-radius: 999px; background: var(--hc); box-shadow: 0 0 10px var(--hc); transition: width .5s ease; }
+  .hbar::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.35); }
+  .hit-row .hv { font-family: var(--mono); font-size: 15px; text-align: right; white-space: nowrap; }
+  .hit-row .hv small { color: var(--muted); font-size: 12px; font-weight: 600; display: block; }
+  .hits .exp { font-size: 13px; color: #c3c9ee; margin-top: 6px; }
+
+  /* ---------- News-Fenster ---------- */
+  .nw-head { display: flex; gap: 12px; align-items: center; font-size: 17px; }
+  .after-rows { display: grid; gap: 6px; margin: 10px 0; }
+  .after-row { display: grid; grid-template-columns: minmax(0, 1.2fr) 1fr 1.3fr; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.25); font-size: 14px; }
+  .after-row.head { background: none; padding-top: 0; padding-bottom: 0; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .after-row b { font-family: var(--mono); }
+  .verdict { padding: 8px 12px; border-radius: 12px; font-weight: 800; }
+  .verdict.ok { background: rgba(43,255,136,.1); color: var(--up); }
+  .verdict.no { background: rgba(255,77,109,.1); color: #ff8a9e; }
+
+  /* ---------- Ergebnis-Karte + Rekorde ---------- */
+  .rc-win { text-align: center; font-size: 20px; font-weight: 900; padding: 10px; border-radius: 14px; background: rgba(255,255,255,.05); margin: 6px 0 12px; }
+  .rc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rc-side { border: 2px solid var(--dc); border-radius: 14px; padding: 10px; background: rgba(0,0,0,.25); }
+  .rc-name { font-weight: 900; color: var(--dc); letter-spacing: .04em; }
+  .rc-big { font-family: var(--mono); font-size: 20px; font-weight: 800; color: var(--text); }
+  .rc-pct { font-family: var(--mono); font-weight: 800; margin-bottom: 6px; }
+  .rc-line { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; padding: 3px 0; border-top: 1px solid rgba(255,255,255,.06); }
+  .rc-line b { font-family: var(--mono); color: var(--text); }
+  .rc-hits { margin-top: 12px; }
+  .rc-hits .hit-row { grid-template-columns: minmax(0, 1.3fr) 1.2fr auto; font-size: 13px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .badges .chip { color: var(--accent); border-color: rgba(255,204,0,.5); background: rgba(255,204,0,.08); }
+  .rec-best { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 12px; }
+  .rec-best div { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; font-size: 13px; }
+  .rec-best b { display: block; font-family: var(--mono); font-size: 16px; color: var(--text); }
+  .rec-list { display: grid; gap: 6px; }
+  .rec-row { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.04); font-size: 13px; }
+  .rec-row .no { font-weight: 900; color: var(--accent2); grid-row: span 2; align-self: center; }
+  .rec-row .r2 { color: var(--muted); }
+  .share-img { display: block; width: 100%; max-width: 320px; margin: 10px auto; border-radius: 12px; border: 1px solid var(--line); }
+  a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
   footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px 40px; }
 
   @media (max-width: 860px) {
@@ -405,6 +482,11 @@
     .stats { grid-template-columns: 1fr 1fr; }
     .stat.total { grid-column: 1 / -1; }
     .risk .stat.dd { grid-column: 1 / -1; }
+    .hit-row { grid-template-columns: 1fr auto; }
+    .hit-row .hbar { grid-column: 1 / -1; grid-row: 2; }
+    .after-row { grid-template-columns: 1fr 1fr; }
+    .after-row > :first-child { grid-column: 1 / -1; }
+    .after-row.head { display: none; }
   }
   @media (max-width: 380px) {
     .grid { grid-template-columns: 1fr; }
@@ -417,13 +499,15 @@
 <div class="sim-banner" role="note">⚠ Simulation <small>– erfundene Kurse, keine echten Daten, keine Anlageberatung</small></div>
 
 <header class="top">
-  <div class="logo">BÖRSEN-DUELL<span>v0.3 · Muster + Kennzahlen</span></div>
-  <div class="week-box">Woche <b id="week">0</b></div>
+  <div class="logo">BÖRSEN-DUELL<span>v0.4 · News, die zählen</span></div>
+  <div class="week-box" title="Eine Saison dauert 26 Wochen"><small>Saison <span id="season">1</span> ·</small> Woche <b id="week">0</b><small>/26 · <span id="dayNow">Start</span></small></div>
   <div class="rate-box" title="Leitzins der Zentralbank (simuliert)">Zins <b id="rate">4,0 %</b></div>
   <button class="btn btn-ghost" id="btnExp" aria-pressed="true">💡 Erklärungen</button>
   <button class="btn btn-ghost" id="btnReset">↺ Neustart</button>
+  <button class="btn btn-ghost" id="btnRecords">🏆 Meine Rekorde</button>
   <button class="btn btn-share" id="btnShare">📤 Ergebnis teilen</button>
   <button class="btn btn-ghost" id="btnTen">⏩ 10 Wochen</button>
+  <button class="btn btn-ghost btn-small" id="btnDay">Nächster Tag ▸</button>
   <button class="btn btn-primary" id="btnNext">Nächste Woche ▶</button>
 </header>
 
@@ -450,24 +534,33 @@
     <summary>❓ So funktioniert dieser Markt</summary>
     <div class="body">
       <p><b>Langfristig</b> zählt, wie gut eine Firma wirklich ist: Umsatz, Gewinn, Wachstum und Schulden ergeben den <b>„Wert laut Kennzahlen“</b> – die <b>weiße Linie</b> im Chart. Liegt der Kurs <b style="color:var(--pricey)">darüber</b> (rote Zone), ist die Aktie eher <b>teuer</b>. Liegt er <b style="color:var(--cheap)">darunter</b> (grüne Zone), ist sie eher <b>günstig</b>.</p>
-      <p><b>Kurzfristig</b> bewegen Zufall und News den Kurs. Jeder Handelstag wird einzeln berechnet – eine Woche hat 5 Handelstage. Die Symbole im Chart sind News: 💬 Stimmung, 📊 Kennzahlen, 📋 Quartalszahlen. <b>Tippe sie an</b>, um zu lesen, was passiert ist.</p>
-      <p><b>Chart-Muster</b> (z. B. „der Kurs steigt schon seit Tagen“) klappen manchmal – aber oft auch nicht. Kurz-Trends sind kurz und schwer vorherzusagen. Bei Firmen mit <b>schwachen Zahlen</b> (Verlust, hohe Schulden, KGV zu hoch) kippen sie besonders oft. Bei <b>soliden</b> Firmen kehrt der Kurs eher zum Kennzahlen-Wert zurück. Achte auf das Warnsymbol <b>⚠️ „Muster gut, Zahlen schwach“</b>.</p>
-      <p><b>Großer Chart:</b> Tippe auf eine Firma. Dort kannst du den Zeitraum wählen (1T bis Alles), mit zwei Fingern zoomen und wischen – am Mac mit dem Mausrad zoomen und mit der Maus ziehen. Kaufen und verkaufen geht dort direkt.</p>
+      <p><b>Kurzfristig</b> bewegen Zufall und News den Kurs. Eine Woche hat 5 Handelstage, jeder Handelstag hat 8 Handelsstunden (9–17 Uhr). Firmen wie 🍕 PizzaRakete schwanken <b>innerhalb eines Tages</b> viel stärker als ruhige Firmen – schau es dir im großen Chart unter <b>1H</b> an.</p>
+      <p><b>News im Chart:</b> <span class="sym sym-up" style="width:22px;height:22px;font-size:12px">▲</span> gute News · <span class="sym sym-down" style="width:22px;height:22px;font-size:12px">▼</span> schlechte News · <span class="sym sym-q" style="width:22px;height:22px;font-size:14px">?</span> unsicher (Gerücht oder angekündigte Quartalszahlen) · <span class="sym sym-eq" style="width:22px;height:22px;font-size:14px">=</span> Zahlen wie erwartet. <b>Tippe ein Symbol an</b> – du siehst auch, <b>was danach geschah</b> (z. B. „+8 % in 5 Tagen“).</p>
+      <p><b>News, die zählen:</b> Gerüchte und Branchen-News wirken meist ein paar Tage nach – ungefähr <b>2 von 3 Mal</b> in die angekündigte Richtung, sonst kommt eine Gegenbewegung. Quartalszahlen werden <b>3 Tage vorher angekündigt</b>, mit einer Erwartung. Meist kommt es wie erwartet – eine Überraschung bewegt den Kurs aber stark. Tipp: Haben Kennzahlen-News seit den letzten Zahlen das Wachstum verändert? Dann ist eine Überraschung wahrscheinlicher.</p>
+      <p><b>Chart-Muster</b> (z. B. „der Kurs steigt schon seit Tagen“) klappen manchmal – aber oft auch nicht. Bei Firmen mit <b>schwachen Zahlen</b> (Verlust, hohe Schulden, KGV zu hoch) kippen sie besonders oft. Achte auf das Warnsymbol <b>⚠️ „Muster gut, Zahlen schwach“</b>.</p>
+      <p><b>🎯 Trefferquote:</b> Jeder Kauf und Verkauf wird 5 Handelstage später geprüft: Lief der Kurs in deine Richtung? Getrennt gezählt werden Trades <b>kurz nach einer News</b> (am selben Tag oder bis zu 2 Tage danach) und Trades <b>ohne News</b>. So siehst du selbst, was besser klappt.</p>
+      <p><b>Großer Chart:</b> Tippe auf eine Firma. Dort kannst du den Zeitraum wählen (1H bis Alles), mit zwei Fingern zoomen und wischen – am Mac mit dem Mausrad zoomen und mit der Maus ziehen. Kaufen und verkaufen geht dort direkt.</p>
       <p><b>Das Duell:</b> Zwei Depots mit je 10.000 € Spielgeld. Im <b>⚡ Trader-Depot</b> handelst du kurzfristig, so oft du willst. Im <b>🌳 Investor-Depot</b> kaufst du für lange Zeit – nur eine kleine <b>Trading-Zone</b> (höchstens 15 % des Depots pro Firma) ist für kurze Trades da. Bei jedem Depot siehst du auch das <b>Risiko</b>: höchster Stand, tiefster Stand und größter Rückgang.</p>
-      <p><b>Speichern:</b> Dein Spielstand wird automatisch in diesem Browser gespeichert. Mit „📤 Ergebnis teilen“ kannst du dein Ergebnis verschicken.</p>
+      <p><b>Saison:</b> Eine Saison dauert <b>26 Wochen</b>. Danach erscheint deine <b>Ergebnis-Karte</b> – sie wird automatisch in <b>🏆 Meine Rekorde</b> gespeichert (bleibt auch nach „Neustart“ erhalten) und kann über „📤 Ergebnis teilen“ verschickt werden.</p>
+      <p><b>Speichern:</b> Dein Spielstand und deine Rekorde werden automatisch in diesem Browser gespeichert – ohne Anmeldung, ohne Server.</p>
       <p>Alle Zahlen sind erfunden bzw. stark vereinfacht. Google und NVIDIA sind hier nur <b>simulierte</b> Versionen der echten Firmen, ihre Kennzahlen sind <b>ungefähre Werte</b>.</p>
     </div>
   </details>
 
   <section class="depots" id="depots"></section>
 
-  <section class="news" aria-live="polite">
+  <section class="hits" id="hits" aria-live="polite"></section>
+
+  <section class="news" id="news" aria-live="polite">
     <h2 id="newsTitle">📰 News dieser Woche</h2>
+    <div class="soon" id="newsSoon"></div>
     <ul id="newsNow"></ul>
     <div class="legend-tags">
-      <span><span class="tag stimmung">💬 Stimmung</span> wirkt nur kurz</span>
-      <span><span class="tag kennzahlen">📊 Kennzahlen</span> wirkt langfristig</span>
-      <span><span class="tag zahlen">📋 Quartalszahlen</span> Firma zeigt ihre Zahlen</span>
+      <span><span class="sym sym-up">▲</span> gut</span>
+      <span><span class="sym sym-down">▼</span> schlecht</span>
+      <span><span class="sym sym-q">?</span> unsicher</span>
+      <span><span class="sym sym-eq">=</span> wie erwartet</span>
+      <span>· Antippen zeigt, was danach geschah</span>
     </div>
     <details class="news-old">
       <summary>Ältere News anzeigen</summary>
@@ -499,6 +592,7 @@
         <div class="chg" id="dChg"></div>
       </div>
       <div class="d-actions">
+        <button class="btn btn-ghost btn-small" id="dDay">Nächster Tag ▸</button>
         <button class="btn btn-primary" id="dNext">Nächste Woche ▶</button>
         <button class="btn btn-ghost d-close" id="dClose" aria-label="Schließen">✕</button>
       </div>
@@ -506,7 +600,7 @@
     <button class="warn-badge" id="dWarn" hidden>⚠️ Vorsicht: Muster gut, Zahlen schwach <small>antippen</small></button>
     <div class="d-tools">
       <div class="seg" role="group" aria-label="Zeitraum">
-        <button data-range="1T">1T</button><button data-range="1W">1W</button><button data-range="1M">1M</button><button data-range="1J">1J</button><button data-range="all">Alles</button>
+        <button data-range="1H" title="Ein Handelstag, Stunde für Stunde">1H</button><button data-range="1W" title="Eine Woche, Stunde für Stunde">1W</button><button data-range="1M">1M</button><button data-range="1J">1J</button><button data-range="all">Alles</button>
       </div>
       <span class="d-range-info" id="dRangeInfo"></span>
       <span class="d-hint">✌️ Zwei Finger: zoomen · 👆 Wischen: verschieben · 🖱️ Mausrad: zoomen · Symbole antippen</span>
@@ -551,21 +645,6 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const pick = arr => arr[Math.floor(rand() * arr.length)];
 const round6 = x => Number(x.toPrecision(6));
 
-// kleiner Zufallsgenerator mit Startwert – damit der Tagesverlauf (1T/1W) bei jedem Zeichnen gleich aussieht
-function mulberry32(a) {
-  return function () {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function hashStr(s) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-
 const nf = (d) => new Intl.NumberFormat("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
 const nf0 = nf(0), nf1 = nf(1), nf2 = nf(2);
 const fmtEUR = x => nf2.format(x) + " €";
@@ -580,35 +659,35 @@ const fmtPrice = v => nf(v < 10 ? 2 : v < 1000 ? 1 : 0).format(v);
    growth = Umsatzwachstum pro Jahr, debt = Schulden (Mrd. €),
    shares = Anzahl Aktien (Mrd.), vol = Zufalls-Schwankung pro Woche,
    beta = wie stark die Firma die Bewegung des Gesamtmarkts mitmacht,
-   newsMult = wie heftig der Kurs auf News reagiert, volType = Anzeige
+   newsMult = wie heftig der Kurs auf News reagiert,
+   intra = wie stark der Kurs innerhalb eines Tages zappelt, volType = Anzeige
    ========================================================= */
 const COMPANY_DEFS = [
   { id: "goog", name: "Google", sector: "Suchmaschine & Werbung", icon: "🔎", color: "#4d9bff", real: true,
     revenue: 340, margin: .28, mTarget: .27, growth: .12, gTarget: .09, debt: 25, shares: 12.2,
-    vol: .014, beta: .8, newsMult: .6, volType: "ruhig" },
+    vol: .014, beta: .8, newsMult: .6, intra: 1.1, volType: "ruhig" },
   { id: "nvda", name: "NVIDIA", sector: "Computer-Chips für KI & Games", icon: "🧠", color: "#76e04a", real: true,
     revenue: 150, margin: .52, mTarget: .45, growth: .45, gTarget: .10, debt: 9, shares: 24.4,
-    vol: .058, beta: 1.6, newsMult: 1.4, volType: "wild" },
+    vol: .058, beta: 1.6, newsMult: 1.4, intra: 1.8, volType: "wild" },
   { id: "solar", name: "SolarWelle", sector: "Start-up · Solaranlagen fürs Dach", icon: "☀️", color: "#ffc83d", real: false,
     revenue: 6, margin: .07, mTarget: .08, growth: .22, gTarget: .14, debt: 5, shares: .1,
-    vol: .068, beta: 1.3, newsMult: 1.5, volType: "wild" },
+    vol: .068, beta: 1.3, newsMult: 1.5, intra: 2.0, volType: "wild" },
   { id: "pizza", name: "PizzaRakete", sector: "Start-up · Essens-Lieferdienst per App", icon: "🍕", color: "#ff5d73", real: false,
     revenue: 2.5, margin: -.05, mTarget: .06, mSpeed: .008, growth: .35, gTarget: .12, debt: 2, shares: .1,
-    vol: .082, beta: 1.4, newsMult: 1.6, volType: "wild" },
+    vol: .082, beta: 1.4, newsMult: 1.6, intra: 2.8, volType: "wild" },
   { id: "knusper", name: "KnusperKorn", sector: "Müsli & Frühstück", icon: "🥣", color: "#c08bff", real: false,
     revenue: 45, margin: .09, mTarget: .09, growth: .03, gTarget: .03, debt: 12, shares: .8,
-    vol: .018, beta: .6, newsMult: .7, volType: "ruhig" },
+    vol: .018, beta: .6, newsMult: .7, intra: 1.0, volType: "ruhig" },
 ];
 const VOL_LABEL = { ruhig: "🌊 schwankt ruhig", mittel: "〰️ schwankt mittel", wild: "🎢 schwankt stark" };
 
 /* =========================================================
    News-Ereignisse
-   kind: "stimmung" (nur kurzfristig) | "kennzahlen" (verändert Fundament)
-   shock: sofortiger Kurssprung, eff: Änderung an den Kennzahlen
+   kind: "stimmung" (Sprung verpufft wieder) | "kennzahlen" (verändert das Fundament, wirkt nach)
+   shock: Kurssprung in der News-Stunde, eff: Änderung an den Kennzahlen
    ========================================================= */
 const GENERIC_EVENTS = [
   { t: "{n} stellt ein neues Produkt vor – die Kunden sind begeistert", shock: .06, eff: { growth: .03 }, kind: "kennzahlen" },
-  { t: "Gerücht: {n} soll von einer anderen Firma gekauft werden", shock: .08, kind: "stimmung" },
   { t: "Der Chef von {n} tritt überraschend zurück", shock: -.07, kind: "stimmung" },
   { t: "Ein großer Kunde verlässt {n}", shock: -.06, eff: { growth: -.03 }, kind: "kennzahlen" },
   { t: "{n} spart Kosten und arbeitet effizienter", shock: .03, eff: { margin: .02 }, kind: "kennzahlen" },
@@ -647,18 +726,47 @@ const MARKET_EVENTS = [
   { t: "Die Zentralbank senkt die Zinsen – Schulden werden billiger", shock: .03, rate: -.01, kind: "kennzahlen" },
   { t: "Angst vor einer Wirtschaftskrise – Panik an der Börse", shock: -.07, kind: "stimmung" },
   { t: "Super Stimmung: Die Börse feiert neue Rekorde", shock: .04, kind: "stimmung" },
-  { t: "Tech-Aktien im Höhenflug", shock: .05, only: ["goog", "nvda"], kind: "stimmung" },
+];
+// Gerüchte: unsicher – meist (ca. 2 von 3 Mal) läuft der Kurs danach in die angekündigte Richtung
+const RUMORS = [
+  { t: "Gerücht: {n} soll von einer großen Firma gekauft werden", dir: 1, size: .10 },
+  { t: "Gerücht: {n} bekommt bald einen Riesen-Auftrag", dir: 1, size: .08 },
+  { t: "Gerücht: {n} arbeitet an einem neuen Hit-Produkt", dir: 1, size: .07 },
+  { t: "Gerücht: Bei {n} gibt es Ärger mit einem wichtigen Produkt", dir: -1, size: .08 },
+  { t: "Gerücht: {n} könnte einen großen Kunden verlieren", dir: -1, size: .08 },
+  { t: "Gerücht: Die Behörden schauen sich {n} genauer an", dir: -1, size: .07 },
+];
+// Branchen-News: betreffen alle Firmen einer Branche und wirken ein paar Tage nach
+const SECTOR_EVENTS = [
+  { t: "Tech-Branche: KI-Projekte boomen – mehr Aufträge in Sicht", ids: ["goog", "nvda"], dir: 1, size: .06 },
+  { t: "Tech-Branche: Firmen wollen weniger für Technik ausgeben", ids: ["goog", "nvda"], dir: -1, size: .06 },
+  { t: "Chip-Branche: Fabriken melden volle Auftragsbücher", ids: ["nvda"], dir: 1, size: .07 },
+  { t: "Chip-Branche: Bauteile werden knapp – Lieferungen verzögern sich", ids: ["nvda"], dir: -1, size: .07 },
+  { t: "Werbe-Branche: Firmen geben wieder mehr für Online-Werbung aus", ids: ["goog"], dir: 1, size: .06 },
+  { t: "Start-up-Branche: Geldgeber sind wieder in Kauflaune", ids: ["solar", "pizza"], dir: 1, size: .07 },
+  { t: "Start-up-Branche: Geldgeber werden vorsichtiger", ids: ["solar", "pizza"], dir: -1, size: .07 },
+  { t: "Energie-Branche: Strom wird teurer – eigener Solarstrom wird beliebter", ids: ["solar"], dir: 1, size: .07 },
+  { t: "Energie-Branche: Weniger Förderung für Solaranlagen geplant", ids: ["solar"], dir: -1, size: .07 },
+  { t: "Liefer-Branche: Lieferdienste melden Rekord-Bestellungen", ids: ["pizza"], dir: 1, size: .07 },
+  { t: "Liefer-Branche: Neue Regeln für Fahrer machen Lieferungen teurer", ids: ["pizza"], dir: -1, size: .07 },
+  { t: "Lebensmittel-Branche: Supermärkte melden starke Verkäufe", ids: ["knusper"], dir: 1, size: .04 },
+  { t: "Lebensmittel-Branche: Zutaten werden überall teurer", ids: ["knusper", "pizza"], dir: -1, size: .05 },
 ];
 
 /* =========================================================
-   Markt-Engine – simuliert jeden Handelstag einzeln
-   (5 Handelstage = 1 Woche)
+   Markt-Engine – simuliert jeden Handelstag einzeln,
+   und jeden Tag in 8 Handelsstunden (9–17 Uhr).
+   5 Handelstage = 1 Woche, 26 Wochen = 1 Saison
    ========================================================= */
 const DAYS = 5;                    // Handelstage pro Woche
+const HOURS = 8;                   // Handelsstunden pro Tag: Kurse um 10, 11, … 17 Uhr (9 Uhr = Schluss vom Vortag)
 const SQRT_DAYS = Math.sqrt(DAYS);
 const YEAR_DAYS = 52 * DAYS;
 const PREHISTORY = YEAR_DAYS;      // ein Jahr Vorgeschichte, damit die Charts nicht leer sind
 const MAX_HISTORY = 12 * YEAR_DAYS;
+const HOURLY_KEEP = 13 * DAYS;     // Stunden-Kurse der letzten 13 Wochen werden aufgehoben
+const SEASON_WEEKS = 26;
+const SEASON_DAYS = SEASON_WEEKS * DAYS;
 const PULL_D = 0.006;              // Grund-Zug zum Kennzahlen-Wert pro Tag
 const PULL_BY_WEAK = [1.6, 1.0, 0.7, 0.5]; // solide Firmen werden stärker zurückgezogen
 const MARKET_VOL_D = 0.007;        // gemeinsame Schwankung aller Aktien pro Tag
@@ -668,7 +776,15 @@ const MOOD_BACK = 0.08;            // so schnell läuft ein Kurz-Trend danach wi
 const FAIL_P = 0.06;               // Kippen eines Musters pro Tag und Schwäche-Punkt
 const WEAK_VOL = 0.15;             // zusätzliche Schwankung pro Schwäche-Punkt
 const P_MARKET_EVENT = 0.016;      // pro Tag
-const P_COMPANY_EVENT = 0.014;     // pro Tag und Firma
+const P_COMPANY_EVENT = 0.012;     // pro Tag und Firma
+const P_RUMOR = 0.008;             // pro Tag und Firma
+const P_SECTOR = 0.014;            // pro Tag
+const RUMOR_TRUE = 0.72;           // so oft bestätigt sich ein Gerücht (sichtbar: ca. 2 von 3 Mal, weil Zufall mitspielt)
+const SECTOR_TRUE = 0.73;          // so oft wirkt eine Branchen-News in die angekündigte Richtung
+const FOLLOW_DAYS = 4;             // so viele Tage wirkt eine News nach
+const AFTER_DAYS = 5;              // „Was danach geschah“: Kurs 5 Tage nach der News
+const NEWS_WINDOW = 2;             // „kurz nach einer News“: am selben Tag oder bis zu 2 Handelstage danach
+const ANNOUNCE_DAYS = 3;           // Quartalszahlen werden 3 Tage vorher angekündigt
 const QUARTER = 13 * DAYS;
 
 let S; // Spielzustand
@@ -705,25 +821,36 @@ function changeDays(c, n) {
 function chartRising(c) { return changeDays(c, 20) >= 0.06 || changeDays(c, 10) >= 0.05; }
 function patternWarning(c) { return chartRising(c) && weakness(c).count > 0; }
 
+function newStats() { return { news: { n: 0, hit: 0 }, plain: { n: 0, hit: 0 }, open: [] }; }
+
 function newGame() {
-  S = { v: 3, day: -PREHISTORY, t0: -PREHISTORY + 1, rate: 0.04, companies: [], news: [], thisWeek: [],
-        nextNews: 1, seed: Math.floor(rand() * 2 ** 31) };
+  S = { v: 4, gid: Math.floor(rand() * 2 ** 31), day: -PREHISTORY, t0: -PREHISTORY + 1, rate: 0.04, companies: [], news: [],
+        nextNews: 1, seasonNo: nextSeasonNo(), step: "start", recent: null, over: false, result: null, stats: newStats() };
   COMPANY_DEFS.forEach((d, i) => {
-    const c = { ...d, hp: [], hf: [], shock: 0, trend: 0, tLeft: 0, mood: 0, reportOffset: 2 + i * 2, lastRevenue: d.revenue };
+    const c = { ...d, hp: [], hf: [], hh: [], jumps: [], fx: [], fxDay: 0, trend: 0, tLeft: 0, mood: 0,
+                reportOffset: 2 + i * 2, repGrowth: d.growth, pending: null };
     c.logP = Math.log(fairValue(c) * (0.85 + rand() * 0.3));
     S.companies.push(c);
   });
   while (S.day < 0) simDay();
   S.startPrices = Object.fromEntries(S.companies.map(c => [c.id, price(c)]));
-  S.thisWeek = [];
   S.depots = { trader: newDepot(), investor: newDepot() };
 }
 
+// Wirkung über die nächsten Tage verteilen (fließt in die Tageskurse ein)
+function addFollow(c, total, days) { if (total) c.fx.push({ n: days, d: total / days }); }
+const symFor = dir => dir > 0 ? "up" : dir < 0 ? "down" : "eq";
+
+// Firmen- und Markt-News: Sprung in der News-Stunde, danach wirkt sie nach (Kennzahlen) oder verpufft (Stimmung)
 function applyEvent(ev, targets, textName) {
   const text = ev.t.replace("{n}", textName || "");
+  const hour = Math.floor(rand() * HOURS);
   const strength = 0.7 + rand() * 0.6;
   targets.forEach(c => {
-    c.shock += ev.shock * strength * c.newsMult;
+    const j = ev.shock * strength * c.newsMult;
+    c.jumps.push({ h: hour, x: j });
+    if (ev.kind === "stimmung") addFollow(c, -0.4 * j, 5);
+    else addFollow(c, 0.35 * j, FOLLOW_DAYS);
     if (ev.eff) {
       if (ev.eff.growth) c.growth += ev.eff.growth;
       if (ev.eff.margin) c.margin += ev.eff.margin;
@@ -731,50 +858,99 @@ function applyEvent(ev, targets, textName) {
     }
   });
   if (ev.rate) S.rate = clamp(S.rate + ev.rate, 0.01, 0.08);
-  return { text, kind: ev.kind, dir: Math.sign(ev.shock), ids: targets.map(c => c.id) };
+  return { text, kind: ev.kind, dir: Math.sign(ev.shock), sym: symFor(ev.shock), ids: targets.map(c => c.id), hour };
+}
+
+// Gerüchte und Branchen-News: kleiner Sprung sofort, dann meist weiter in die angekündigte Richtung – sonst Gegenbewegung
+function applyFollowNews(text, kind, targets, dir, size, pTrue) {
+  const hour = Math.floor(rand() * HOURS);
+  const comesTrue = rand() < pTrue;
+  const strength = 0.7 + rand() * 0.6;
+  targets.forEach(c => {
+    const M = size * strength * c.newsMult * 1.4;
+    c.jumps.push({ h: hour, x: dir * M * 0.3 });
+    addFollow(c, comesTrue ? dir * M * 0.7 : -dir * M * 0.8, FOLLOW_DAYS);
+  });
+  return { text, kind, dir, sym: kind === "geruecht" ? "q" : symFor(dir), ids: targets.map(c => c.id), hour };
 }
 
 function simDay() {
   S.day++;
   const t = S.day, events = [];
-  S.companies.forEach(c => { c.shock = 0; });
+  const add = e => { e.day = t; e.id = S.nextNews++; events.push(e); return e; };
+
+  // 0) Nachwirkung früherer News für heute einsammeln
+  S.companies.forEach(c => {
+    c.jumps = [];
+    c.fxDay = 0;
+    c.fx = c.fx.filter(f => { c.fxDay += f.d; return --f.n > 0; });
+  });
 
   // 1) Markt-News
   if (rand() < P_MARKET_EVENT) {
     let ev = pick(MARKET_EVENTS);
     if (ev.rate > 0 && S.rate >= 0.08) ev = MARKET_EVENTS[1];
     if (ev.rate < 0 && S.rate <= 0.01) ev = MARKET_EVENTS[0];
-    const targets = ev.only ? S.companies.filter(c => ev.only.includes(c.id)) : S.companies;
-    events.push(applyEvent(ev, targets));
+    add(applyEvent(ev, S.companies));
   }
 
-  // 2) Firmen-News
+  // 2) Branchen-News
+  if (rand() < P_SECTOR) {
+    const ev = pick(SECTOR_EVENTS);
+    add(applyFollowNews(ev.t, "branche", S.companies.filter(c => ev.ids.includes(c.id)), ev.dir, ev.size, SECTOR_TRUE));
+  }
+
+  // 3) Firmen-News und Gerüchte
   S.companies.forEach(c => {
-    if (rand() < P_COMPANY_EVENT) {
+    const r = rand();
+    if (r < P_COMPANY_EVENT) {
       const specific = SPECIFIC_EVENTS[c.id] || [];
       const ev = (specific.length && rand() < 0.5) ? pick(specific) : pick(GENERIC_EVENTS);
-      events.push(applyEvent(ev, [c], c.name));
+      add(applyEvent(ev, [c], c.name));
+    } else if (r < P_COMPANY_EVENT + P_RUMOR) {
+      const ev = pick(RUMORS);
+      add(applyFollowNews(ev.t.replace("{n}", c.name), "geruecht", [c], ev.dir, ev.size, RUMOR_TRUE));
     }
   });
 
-  // 3) Quartalszahlen (alle 13 Wochen, je Firma versetzt)
+  // 4) Quartalszahlen (alle 13 Wochen, je Firma versetzt) – 3 Tage vorher angekündigt
   S.companies.forEach(c => {
-    if (((t + c.reportOffset * DAYS) % QUARTER + QUARTER) % QUARTER === 0) {
-      const surprise = randn() * 0.05;
-      const yoy = Math.pow(c.revenue / c.lastRevenue, 4) - 1; // aufs Jahr hochgerechnet
-      c.lastRevenue = c.revenue;
-      c.growth += surprise * 0.2;
-      c.shock += surprise * c.newsMult;
-      const how = surprise > 0.03 ? "besser als erwartet 🚀" : surprise < -0.03 ? "schlechter als erwartet 😬" : "ungefähr wie erwartet";
-      const p = profit(c);
-      events.push({
-        text: `${c.name} zeigt Quartalszahlen: Umsatz ${fmtPct(yoy, 0)} aufs Jahr gerechnet, ${p >= 0 ? "Gewinn" : "Verlust"} ${fmtMrd(Math.abs(p) / 4)} – ${how}`,
-        kind: "zahlen", dir: Math.sign(surprise), ids: [c.id],
-      });
+    const phase = ((t + c.reportOffset * DAYS) % QUARTER + QUARTER) % QUARTER;
+    if (phase === QUARTER - ANNOUNCE_DAYS) {
+      // Die Erwartung der Börse: so wie beim letzten Mal, ein bisschen in Richtung des langfristigen Trends
+      const exp = Math.round((c.repGrowth + (c.gTarget - c.repGrowth) * 0.12) * 100) / 100;
+      const n = add({ text: `${c.name}: Quartalszahlen in ${ANNOUNCE_DAYS} Tagen – Erwartung: ${fmtPct(exp, 0)} Umsatz`,
+                      kind: "ankuendigung", dir: 0, sym: "q", ids: [c.id], hour: Math.floor(rand() * HOURS), exp });
+      c.pending = { day: t + ANNOUNCE_DAYS, exp, nid: n.id };
+    }
+    if (phase === 0) {
+      const exp = c.pending ? c.pending.exp : Math.round(c.repGrowth * 100) / 100;
+      // Ergebnis: wie die Firma gerade wirklich wächst – plus ab und zu eine echte Überraschung
+      let act = c.growth + randn() * 0.01;
+      const r = rand();
+      if (r < 0.1) act += 0.05 + rand() * 0.08;
+      else if (r < 0.2) act -= 0.05 + rand() * 0.08;
+      act = Math.round(act * 100) / 100;
+      const s = act - exp;
+      const how = s > 0.03 ? 1 : s < -0.03 ? -1 : 0;
+      let j;
+      if (how === 0) j = (s * 0.4 + randn() * 0.004) * c.newsMult;      // wie erwartet: das wussten alle schon
+      else {
+        j = how * Math.min(0.2, 0.05 + (Math.abs(s) - 0.03) * 0.8) * c.newsMult;
+        addFollow(c, 0.3 * j, FOLLOW_DAYS);                               // nach Überraschungen läuft der Kurs oft noch weiter
+        c.margin += how * 0.004;
+      }
+      c.jumps.push({ h: 0, x: j }); // Zahlen kommen vor Börsenstart
+      c.growth += (act - c.growth) * 0.5;
+      c.repGrowth = act;
+      const txt = how > 0 ? "besser als erwartet 🚀" : how < 0 ? "schlechter als erwartet 😬" : "wie erwartet";
+      add({ text: `${c.name}: Umsatz ${fmtPct(act, 0)} (erwartet ${fmtPct(exp, 0)}) – ${txt}`,
+            kind: "zahlen", dir: how, sym: symFor(how), ids: [c.id], hour: 0, exp, act, ref: c.pending ? c.pending.nid : null });
+      c.pending = null;
     }
   });
 
-  // 4) Kennzahlen entwickeln sich langsam weiter
+  // 5) Kennzahlen entwickeln sich langsam weiter
   S.companies.forEach(c => {
     c.growth += (c.gTarget - c.growth) * 0.002 + randn() * 0.0009;
     c.margin += (c.mTarget - c.margin) * (c.mSpeed || 0.02) / DAYS + randn() * 0.0009;
@@ -786,8 +962,8 @@ function simDay() {
     else c.debt = Math.max(0, c.debt - p / YEAR_DAYS * 0.2); // ein Teil des Gewinns tilgt Schulden
   });
 
-  // 5) Kurse: Zug zum Kennzahlen-Wert + Kurz-Trend + Zufall + News
-  const market = randn() * MARKET_VOL_D;
+  // 6) Kurse: Zug zum Kennzahlen-Wert + Kurz-Trend + Zufall + News – Stunde für Stunde
+  const market = randn() * MARKET_VOL_D, floorL = Math.log(0.5);
   S.companies.forEach(c => {
     const fv = fairValue(c), weak = weakness(c).count, sd = c.vol / SQRT_DAYS * (1 + WEAK_VOL * weak);
     // Kurz-Trends: kurz, zufällige Richtung, zufällige Länge – schwer vorherzusagen
@@ -804,8 +980,19 @@ function simDay() {
     const dMood = c.trend - MOOD_BACK * c.mood;
     c.mood += dMood;
     const pull = PULL_D * PULL_BY_WEAK[weak];
-    c.logP += pull * (Math.log(fv) - c.logP) + c.beta * market + dMood + sd * randn() + c.shock;
-    c.logP = Math.max(c.logP, Math.log(0.5));
+    const base = pull * (Math.log(fv) - c.logP) + c.beta * market + dMood + sd * randn() + c.fxDay;
+    const jumpSum = c.jumps.reduce((sum, j) => sum + j.x, 0);
+    // Stundenverlauf: Zufalls-Weg, der genau beim Schlusskurs ankommt; wilde Firmen zappeln stärker
+    const l0 = c.logP, hs = sd * c.intra / Math.sqrt(HOURS), W = [0];
+    for (let k = 1; k <= HOURS; k++) W.push(W[k - 1] + randn() * hs);
+    for (let k = 1; k <= HOURS; k++) {
+      let v = l0 + base * k / HOURS + W[k] - (k / HOURS) * W[HOURS];
+      c.jumps.forEach(j => { if (j.h < k) v += j.x; });
+      c.hh.push(round6(Math.exp(Math.max(v, floorL))));
+    }
+    c.logP = Math.max(floorL, l0 + base + jumpSum);
+    c.hh[c.hh.length - 1] = round6(price(c));
+    if (c.hh.length > HOURLY_KEEP * HOURS) c.hh.splice(0, HOURS);
     c.hp.push(round6(price(c)));
     c.hf.push(round6(fv));
   });
@@ -814,24 +1001,48 @@ function simDay() {
     S.t0++;
   }
 
-  events.forEach(e => { e.day = t; e.id = S.nextNews++; });
   S.news.unshift(...events);
-  if (S.news.length > 500) S.news.length = 500;
-  if (S.depots) Object.values(S.depots).forEach(trackRisk);
+  if (S.news.length > 600) S.news.length = 600;
+  if (S.depots) {
+    Object.values(S.depots).forEach(d => { trackRisk(d); d.curve.push(Math.round(depotValue(d))); });
+    evalTrades(false);
+  }
   return events;
 }
 
-function simWeek() {
-  const events = [];
-  for (let i = 0; i < DAYS; i++) events.push(...simDay());
-  S.thisWeek = events;
-  if (S.depots) Object.values(S.depots).forEach(d => d.curve.push(Math.round(depotValue(d))));
-}
 const weekNo = () => Math.floor(S.day / DAYS);
 const dayWeek = t => Math.ceil(t / DAYS);
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr"];
 const dayName = t => DAY_NAMES[((t - 1) % DAYS + DAYS) % DAYS];
 const dayLabel = t => dayWeek(t) < 0 ? `${dayName(t)}, ${-dayWeek(t)} Wochen vor dem Start` : `${dayName(t)}, Woche ${dayWeek(t)}`;
+
+/* =========================================================
+   Trefferquote: Jeder Trade wird 5 Handelstage später geprüft.
+   Kauf = Treffer, wenn der Kurs danach höher ist; Verkauf = Treffer, wenn er tiefer ist.
+   ========================================================= */
+function recentNews(c) {
+  return S.news.find(n => n.ids.includes(c.id) && S.day - n.day >= 0 && S.day - n.day <= NEWS_WINDOW) || null;
+}
+function recordTrade(c, dir) {
+  const n = recentNews(c);
+  S.stats.open.push({ id: c.id, dir, p: price(c), day: S.day, news: !!n });
+  return n;
+}
+// final = Saisonende: offene Trades werden mit dem letzten Kurs bewertet
+function evalTrades(final) {
+  const st = S.stats, done = { news: { n: 0, hit: 0 }, plain: { n: 0, hit: 0 } };
+  st.open = st.open.filter(tr => {
+    if (S.day - tr.day < AFTER_DAYS && !(final && S.day > tr.day)) return true;
+    if (S.day > tr.day) {
+      const hit = tr.dir * (price(company(tr.id)) - tr.p) > 0;
+      [st, done].forEach(o => { const b = tr.news ? o.news : o.plain; b.n++; if (hit) b.hit++; });
+    }
+    return false;
+  });
+  st.lastDone = st.lastDone ? { news: addHits(st.lastDone.news, done.news), plain: addHits(st.lastDone.plain, done.plain) } : done;
+}
+const addHits = (a, b) => ({ n: a.n + b.n, hit: a.hit + b.hit });
+const hitRate = b => b.n ? b.hit / b.n : null;
 
 /* =========================================================
    Depots: Trader gegen Investor
@@ -841,9 +1052,9 @@ const dayLabel = t => dayWeek(t) < 0 ? `${dayName(t)}, ${-dayWeek(t)} Wochen vor
 const START_CASH = 10000;
 const ZONE_LIMIT = 0.15; // Investor-Depot: max. Anteil kurzfristiger Trades pro Firma
 const DEPOTS = {
-  trader:   { name: "Trader",   icon: "⚡", color: "var(--trader)",
+  trader:   { name: "Trader",   icon: "⚡", color: "var(--trader)", hex: "#ff4dd2",
               rule: "Kauft und verkauft kurzfristig – so oft und so viel, wie das Bargeld reicht." },
-  investor: { name: "Investor", icon: "🌳", color: "var(--investor)",
+  investor: { name: "Investor", icon: "🌳", color: "var(--investor)", hex: "#36d6ff",
               rule: "Kauft Firmen für lange Zeit. Kurz-Trades nur in der Trading-Zone: höchstens 15 % des Depots pro Firma." },
 };
 const BUCKET = { lang: "🌳 Langfristig", trade: "⚡ Kurz-Trade" };
@@ -873,7 +1084,8 @@ function doBuy(depotKey, c, qty, bucket) {
   const pos = d.pos[key] || (d.pos[key] = { id: c.id, bucket, qty: 0, cost: 0 });
   pos.qty += qty; pos.cost += total;
   d.cash -= total; d.trades++;
-  afterTrade(`✅ ${qty} × ${c.name} gekauft für ${fmtEUR(total)} (${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name}${depotKey === "investor" ? ", " + BUCKET[bucket] : ""})`);
+  const n = recordTrade(c, 1);
+  afterTrade(`✅ ${qty} × ${c.name} gekauft für ${fmtEUR(total)} (${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name}${depotKey === "investor" ? ", " + BUCKET[bucket] : ""})${tradeNote(n)}`);
 }
 
 function doSell(depotKey, c, qty, bucket) {
@@ -883,11 +1095,17 @@ function doSell(depotKey, c, qty, bucket) {
   pos.qty -= qty;
   if (pos.qty <= 0) delete d.pos[key];
   d.cash += total; d.trades++;
-  afterTrade(`💶 ${qty} × ${c.name} verkauft für ${fmtEUR(total)} (${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name})`);
+  const n = recordTrade(c, -1);
+  afterTrade(`💶 ${qty} × ${c.name} verkauft für ${fmtEUR(total)} (${DEPOTS[depotKey].icon} ${DEPOTS[depotKey].name})${tradeNote(n)}`);
 }
+const tradeNote = n => n ? " · 📰 kurz nach einer News – Auswertung in 5 Tagen" : " · 🎲 ohne News – Auswertung in 5 Tagen";
+
+// Nach dem Saisonende wird nicht mehr gehandelt – stattdessen die Ergebnis-Karte zeigen
+function seasonLocked() { if (S.over) { showSeasonCard(); return true; } return false; }
 
 // Kauf-Wunsch prüfen – bei Problemen eine freundliche Erklärung statt eines Fehlers
 function tryBuy(depotKey, c, qty, bucket) {
+  if (seasonLocked()) return;
   const d = S.depots[depotKey], p = price(c), total = qty * p;
   const canAfford = Math.floor(d.cash / p);
 
@@ -927,6 +1145,7 @@ function tryBuy(depotKey, c, qty, bucket) {
 }
 
 function trySell(depotKey, c, qty, bucket) {
+  if (seasonLocked()) return;
   const d = S.depots[depotKey], have = getPos(d, c.id, bucket).qty;
   if (have === 0) {
     const other = bucket === "lang" ? "trade" : "lang";
@@ -956,12 +1175,13 @@ function trySell(depotKey, c, qty, bucket) {
 /* =========================================================
    Speichern (localStorage) – funktioniert auch ohne, z. B. im privaten Fenster
    ========================================================= */
-const SAVE_KEY = "boersenDuell.v3";
+const SAVE_KEY = "boersenDuell.v4";
+const OLD_SAVE_KEY = "boersenDuell.v3";
 let saveWorks = true;
 function save() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 3, S,
+      v: 4, S,
       ui: { depot: UI.depot, mode: UI.mode, qty: UI.qty, exp: !document.body.classList.contains("no-exp"), range: DV.range },
     }));
     if (!saveWorks) { saveWorks = true; renderSaveInfo(); }
@@ -975,8 +1195,8 @@ function load() {
     if (!raw) return false;
     const data = JSON.parse(raw);
     const s = data && data.S;
-    if (data.v !== 3 || !s || !Array.isArray(s.companies) || s.companies.length !== COMPANY_DEFS.length
-        || !s.depots || !s.companies.every(c => Array.isArray(c.hp) && c.hp.length > DAYS)) return false;
+    if (data.v !== 4 || !s || !Array.isArray(s.companies) || s.companies.length !== COMPANY_DEFS.length || !s.depots || !s.stats
+        || !s.companies.every(c => Array.isArray(c.hp) && c.hp.length > DAYS && Array.isArray(c.hh) && c.hh.length >= HOURS)) return false;
     S = s;
     const ui = data.ui || {};
     if (ui.depot in DEPOTS) UI.depot = ui.depot;
@@ -990,6 +1210,31 @@ function load() {
   }
 }
 function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* nichts zu tun */ } }
+function hadOldSave() {
+  try {
+    if (!localStorage.getItem(OLD_SAVE_KEY)) return false;
+    localStorage.removeItem(OLD_SAVE_KEY);
+    return true;
+  } catch (e) { return false; }
+}
+
+/* =========================================================
+   Meine Rekorde – eigener Speicherplatz, bleibt auch nach „Neustart“ erhalten
+   ========================================================= */
+const REC_KEY = "boersenDuell.rekorde";
+let recordsWork = true;
+function loadRecords() {
+  try {
+    const list = JSON.parse(localStorage.getItem(REC_KEY) || "[]");
+    return Array.isArray(list) ? list.filter(r => r && r.trader && r.investor && r.hits) : [];
+  } catch (e) { return []; }
+}
+function saveRecords() {
+  try { localStorage.setItem(REC_KEY, JSON.stringify(RECORDS)); recordsWork = true; }
+  catch (e) { recordsWork = false; }
+}
+let RECORDS = loadRecords();
+function nextSeasonNo() { return RECORDS.reduce((m, r) => Math.max(m, r.no || 0), 0) + 1; }
 function renderSaveInfo() {
   document.getElementById("saveInfo").textContent = saveWorks
     ? "💾 Spielstand wird automatisch in diesem Browser gespeichert."
@@ -1007,13 +1252,28 @@ const EXPLAIN = {
   kgv: "Kurs-Gewinn-Verhältnis: Wie viele Jahre Gewinn du für die Aktie bezahlst. Hoch = teuer oder alle erwarten viel Wachstum.",
 };
 const KIND = {
-  stimmung:   { icon: "💬", label: "Stimmung", color: "#ff8be3",
-                why: "Stimmungs-News verändern nur die Laune der Anleger. Der Effekt verpufft meist wieder – die Firma ist danach nicht mehr oder weniger wert." },
-  kennzahlen: { icon: "📊", label: "Kennzahlen", color: "#00e5ff",
-                why: "Kennzahlen-News verändern Umsatz, Gewinn, Wachstum oder Schulden – und damit den Wert der Firma dauerhaft. Schau, ob sich die weiße Linie bewegt." },
-  zahlen:     { icon: "📋", label: "Quartalszahlen", color: "#ffcc00",
-                why: "Quartalszahlen: Die Firma zeigt, wie es wirklich läuft. Überraschungen bewegen den Kurs – und oft auch den Kennzahlen-Wert." },
+  stimmung:     { icon: "💬", label: "Stimmung",
+                  why: "Stimmungs-News ändern nur die Laune der Anleger. Die Firma ist danach nicht mehr oder weniger wert – der Sprung verpufft oft in den Tagen danach wieder." },
+  kennzahlen:   { icon: "📊", label: "Kennzahlen",
+                  why: "Diese News verändert Umsatz, Gewinn, Wachstum oder Schulden – also den echten Wert der Firma. Die weiße Linie bewegt sich mit, und der Kurs folgt meist noch ein paar Tage." },
+  geruecht:     { icon: "🗣️", label: "Gerücht",
+                  why: "Ein Gerücht ist noch nicht bestätigt. Meist (etwa 2 von 3 Mal) läuft der Kurs in den nächsten Tagen in die angekündigte Richtung – manchmal stellt es sich aber als falsch heraus, dann kommt eine Gegenbewegung." },
+  branche:      { icon: "🏭", label: "Branche",
+                  why: "Branchen-News betreffen alle Firmen einer Branche. Meist (etwa 2 von 3 Mal) wirkt sie in den nächsten Tagen in die angekündigte Richtung." },
+  ankuendigung: { icon: "📅", label: "Ankündigung",
+                  why: "Bald zeigt die Firma ihre Quartalszahlen. Meist kommt es wie erwartet – dann bewegt sich der Kurs kaum. Eine Überraschung bewegt ihn stark. Tipp: Haben Kennzahlen-News seit den letzten Zahlen das Wachstum verändert? Dann ist eine Überraschung wahrscheinlicher." },
+  zahlen:       { icon: "📋", label: "Quartalszahlen",
+                  why: "Die Firma zeigt, wie es wirklich läuft. Wie erwartet = kaum Bewegung, denn das wussten alle schon. Überraschung = großer Sprung – und oft läuft der Kurs danach noch ein Stück weiter." },
 };
+// Symbole im Chart: grüner Pfeil = gut, roter Pfeil = schlecht, gelbes ? = unsicher, weißes = = wie erwartet
+const SYM = {
+  up:   { ch: "▲", color: "#2bff88", label: "gute News" },
+  down: { ch: "▼", color: "#ff4d6d", label: "schlechte News" },
+  q:    { ch: "?", color: "#ffcc00", label: "unsichere News" },
+  eq:   { ch: "=", color: "#e8ebff", label: "wie erwartet" },
+};
+const symHTML = (sym, big) => `<span class="sym sym-${sym}${big ? " big" : ""}" role="img" aria-label="${SYM[sym].label}">${SYM[sym].ch}</span>`;
+const newsById = id => S.news.find(n => n.id === id);
 
 const grid = document.getElementById("grid");
 const cardEls = {};
@@ -1052,7 +1312,7 @@ function legendHTML(c) {
     <span><i class="fair"></i>Wert laut Kennzahlen</span>
     <span><i class="zone pricey"></i>teuer</span>
     <span><i class="zone cheap"></i>günstig</span>
-    <span>💬 📊 📋 News (antippen)</span>`;
+    <span>▲ ▼ ? = News (antippen)</span>`;
 }
 
 function buildCards() {
@@ -1077,6 +1337,7 @@ function buildCards() {
         </div>
       </div>
       <button class="warn-badge" data-act="warn" data-k="warn" hidden>⚠️ Vorsicht: Muster gut, Zahlen schwach <small>antippen</small></button>
+      <div data-k="upcoming"></div>
       <div class="chart-box">
         <canvas class="chart" aria-label="Kursverlauf ${c.name} – antippen für großen Chart"></canvas>
         <button class="zoom-btn" data-act="open">🔍 Großer Chart</button>
@@ -1092,7 +1353,7 @@ function buildCards() {
     canvas.addEventListener("click", e => {
       const r = canvas.getBoundingClientRect();
       const hit = hitTest(cardEls[c.id].hits, e.clientX - r.left, e.clientY - r.top);
-      if (hit) showNews(c, hit.news);
+      if (hit) showNews(hit.news, c);
       else openDetail(c.id);
     });
   });
@@ -1144,24 +1405,30 @@ function metricsHTML(c) {
 }
 
 function render(animate) {
-  document.getElementById("week").textContent = weekNo();
+  document.getElementById("season").textContent = S.seasonNo;
+  document.getElementById("week").textContent = S.day > 0 ? dayWeek(S.day) : 0;
+  document.getElementById("dayNow").textContent = S.over ? "beendet 🏁" : S.day > 0 ? dayName(S.day) : "Start";
   document.getElementById("rate").textContent = nf1.format(S.rate * 100) + " %";
+  const nextLabel = S.over ? "🏁 Ergebnis-Karte" : "Nächste Woche ▶";
+  ["btnNext", "dNext"].forEach(id => { document.getElementById(id).textContent = nextLabel; });
+  ["btnDay", "dDay", "btnTen"].forEach(id => { document.getElementById(id).hidden = S.over; });
 
   S.companies.forEach(c => {
-    const { q, canvas } = cardEls[c.id];
-    const now = price(c), wk = changeDays(c, DAYS), since = now / S.startPrices[c.id] - 1;
+    const { q } = cardEls[c.id];
+    const now = price(c), today = changeDays(c, 1), wk = changeDays(c, DAYS), since = now / S.startPrices[c.id] - 1;
     const priceEl = q("price");
     priceEl.textContent = fmtEUR(now);
     if (animate) {
       priceEl.classList.remove("flash-up", "flash-down");
       void priceEl.offsetWidth;
-      priceEl.classList.add(wk >= 0 ? "flash-up" : "flash-down");
+      priceEl.classList.add(today >= 0 ? "flash-up" : "flash-down");
     }
-    q("chg").textContent = (wk >= 0 ? "▲ " : "▼ ") + fmtPct(wk) + " Woche";
-    q("chg").className = "chg " + (wk >= 0 ? "up" : "down");
-    q("chgStart").textContent = fmtPct(since) + " seit Start";
-    q("chgStart").className = "chg " + (since >= 0 ? "up" : "down");
+    q("chg").textContent = (today >= 0 ? "▲ " : "▼ ") + fmtPct(today) + " heute";
+    q("chg").className = "chg " + (today >= 0 ? "up" : "down");
+    q("chgStart").innerHTML = `<span class="${wk >= 0 ? "up" : "down"}">${fmtPct(wk)} Woche</span><br><span class="${since >= 0 ? "up" : "down"}">${fmtPct(since)} seit Start</span>`;
+    q("chgStart").className = "chg";
     q("warn").hidden = !patternWarning(c);
+    q("upcoming").innerHTML = upcomingHTML(c);
     q("gauge").innerHTML = gaugeHTML(c);
     q("metrics").innerHTML = metricsHTML(c);
     drawCardChart(c);
@@ -1174,7 +1441,16 @@ function render(animate) {
 
 function drawCardChart(c) {
   const s = dailySeries(c), n = s.pts.length;
-  cardEls[c.id].hits = drawChart(cardEls[c.id].canvas, c, s, Math.max(0, n - 1 - YEAR_DAYS), n - 1, { compact: true }).hits;
+  cardEls[c.id].hits = drawChart(cardEls[c.id].canvas, c, s, Math.max(0, n - 1 - SEASON_DAYS), n - 1, { compact: true }).hits;
+}
+
+// angekündigte Quartalszahlen: eine Zeile mit gelbem ?
+function upcomingHTML(c) {
+  const p = c.pending;
+  if (!p || p.day <= S.day) return "";
+  const left = p.day - S.day;
+  return `<button class="upcoming" data-act="news" data-nid="${p.nid}">${symHTML("q")}
+    <span>${c.icon} ${c.name}: Quartalszahlen in <b>${left} ${left === 1 ? "Tag" : "Tagen"}</b> · Erwartung ${fmtPct(p.exp, 0)} Umsatz</span></button>`;
 }
 
 // alles, was sich nach einem Kauf/Verkauf ändert
@@ -1182,6 +1458,26 @@ function renderTrading() {
   S.companies.forEach(renderTradePanels);
   renderDepots();
   renderDuel();
+  renderHits();
+}
+
+// Trefferquote: mit News vs. ohne News
+function hitRowHTML(label, b, color) {
+  const r = hitRate(b);
+  return `<div class="hit-row" style="--hc:${color}">
+      <span>${label}</span>
+      <div class="hbar" aria-hidden="true"><i style="width:${r === null ? 0 : Math.round(r * 100)}%"></i></div>
+      <span class="hv">${r === null ? "–" : nf0.format(r * 100) + " %"}<small>${b.n ? `${b.hit} von ${b.n} Treffern` : "noch keine Trades"}</small></span>
+    </div>`;
+}
+function renderHits() {
+  const st = S.stats, open = st.open.length;
+  document.getElementById("hits").innerHTML = `<h2>🎯 Deine Trefferquote · Saison ${S.seasonNo}</h2>
+    ${hitRowHTML("📰 Trades kurz nach einer News", st.news, "#ffcc00")}
+    ${hitRowHTML("🎲 Trades ohne News", st.plain, "#a26bff")}
+    <div class="exp">Treffer = der Kurs lief in den 5 Handelstagen nach deinem Trade in deine Richtung (Kauf → höher, Verkauf → tiefer).
+      „Kurz nach einer News“ = am Tag der News oder bis zu 2 Handelstage danach. Die Linie in der Mitte steht für 50 % – so oft trifft man auch mit Raten.
+      ${open ? `<b>${open} ${open === 1 ? "Trade wird" : "Trades werden"} noch ausgewertet.</b>` : ""}</div>`;
 }
 function renderTradePanels(c) {
   renderTradePanel(c, cardEls[c.id].el, cardEls[c.id].q);
@@ -1360,17 +1656,50 @@ function toast(msg) {
 
 function newsForCompany(c) { return S.news.filter(n => n.ids.includes(c.id)); }
 
-function showNews(c, list) {
-  const n0 = list[0];
-  const idx = n0.day - S.t0;
-  const move = idx > 0 && idx < c.hp.length ? c.hp[idx] / c.hp[idx - 1] - 1 : null;
+// Wie hat sich der Kurs nach der News entwickelt? (Schlusskurs am News-Tag → 5 Tage später)
+function afterMove(c, n) {
+  const idx = n.day - S.t0, last = c.hp.length - 1;
+  if (idx < 1 || idx > last) return null;
+  const end = Math.min(idx + AFTER_DAYS, last);
+  return { react: c.hp[idx] / c.hp[idx - 1] - 1, ch: c.hp[end] / c.hp[idx] - 1, days: end - idx, done: end - idx >= AFTER_DAYS };
+}
+const afterText = a => a.done ? `${fmtPct(a.ch, 0)} in 5 Tagen` : a.days ? `${fmtPct(a.ch, 0)} nach ${a.days} von 5 Tagen` : "kommt noch";
+
+function showNews(n, cFirst) {
+  if (!n) return;
+  const ids = cFirst && n.ids.includes(cFirst.id) ? [cFirst.id, ...n.ids.filter(id => id !== cFirst.id)] : n.ids;
+  const comps = ids.map(company);
+  const rows = comps.map(c => {
+    const a = afterMove(c, n);
+    if (!a) return "";
+    return `<div class="after-row"><span>${c.icon} ${c.name}</span>
+      <span>am Tag: <b class="${a.react >= 0 ? "up" : "down"}">${fmtPct(a.react)}</b></span>
+      <span>danach: <b class="${a.days ? (a.ch >= 0 ? "up" : "down") : ""}">${afterText(a)}</b></span></div>`;
+  }).join("");
+  // Bestätigt? Nur für News mit klarer Richtung, sobald die 5 Tage vorbei sind
+  const a0 = comps.length ? afterMove(comps[0], n) : null;
+  let verdict = "";
+  if (n.dir && a0 && a0.done) {
+    verdict = Math.sign(a0.ch) === n.dir
+      ? `<p class="verdict ok">✅ Der Kurs lief danach in die Richtung der News.</p>`
+      : `<p class="verdict no">↩️ Gegenbewegung – der Kurs lief danach gegen die News.</p>`;
+  }
+  let extra = "";
+  if (n.kind === "ankuendigung") {
+    const res = S.news.find(r => r.ref === n.id);
+    extra = res ? `<p>📋 Ergebnis: <b>${res.text}</b></p>` : `<p>⏳ Das Ergebnis kommt noch. Die Börse erwartet <b>${fmtPct(n.exp, 0)} Umsatz</b>.</p>`;
+  }
+  if (n.kind === "zahlen" && n.exp != null) {
+    extra = `<p>Erwartet: <b>${fmtPct(n.exp, 0)}</b> · Ergebnis: <b class="${n.act >= n.exp ? "up" : "down"}">${fmtPct(n.act, 0)}</b> Umsatz</p>`;
+  }
   showInfo({
-    icon: KIND[n0.kind].icon,
-    title: `News · ${dayLabel(n0.day)}`,
-    html: list.map(n => `<p><span class="tag ${n.kind}" style="font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px">${KIND[n.kind].icon} ${KIND[n.kind].label}</span></p>
-        <p><b>${n.text}</b></p>
-        <p class="m-why">💡 ${KIND[n.kind].why}</p>`).join("")
-      + (move !== null ? `<p>Kurs von ${c.name} an diesem Tag: <b class="${move >= 0 ? "up" : "down"}">${fmtPct(move)}</b></p>` : ""),
+    icon: KIND[n.kind].icon,
+    title: `${KIND[n.kind].label} · ${dayLabel(n.day)}, ${9 + n.hour} Uhr`,
+    html: `<div class="nw-head">${symHTML(n.sym, true)}<b>${n.text}</b></div>
+      ${extra}
+      <div class="after-rows"><div class="after-row head"><span>Firma</span><span>Am Tag der News</span><span>Was danach geschah</span></div>${rows}</div>
+      ${verdict}
+      <p class="m-why">💡 ${KIND[n.kind].why}</p>`,
   });
 }
 
@@ -1388,93 +1717,120 @@ function showWarn(c) {
   });
 }
 
+function newsLiHTML(n, showWeek) {
+  const c = company(n.ids[0]), a = afterMove(c, n);
+  const cls = n.sym === "up" ? "pos" : n.sym === "down" ? "neg" : n.sym === "q" ? "unsure" : "";
+  const icons = n.ids.length >= S.companies.length ? "🌍" : n.ids.map(id => company(id).icon).join("");
+  const ap = a && a.done ? `<span class="ap ${a.ch >= 0 ? "up" : "down"}" title="Kurs in den 5 Tagen danach">${fmtPct(a.ch, 0)} · 5 T</span>`
+    : a && a.days ? `<span class="ap wait" title="läuft noch">${fmtPct(a.ch, 0)} · ${a.days}/5 T</span>` : "";
+  return `<li class="${cls}" data-nid="${n.id}" title="${n.text.replace(/"/g, "&quot;")}">
+      ${symHTML(n.sym)}<span class="wk">${showWeek ? `W${dayWeek(n.day)} ` : ""}${dayName(n.day)}</span>
+      <span class="nt">${icons} ${n.text}</span>${ap}</li>`;
+}
+
 function renderNews() {
   const now = document.getElementById("newsNow");
   const old = document.getElementById("newsOld");
   const title = document.getElementById("newsTitle");
-  title.textContent = "📰 News dieser Woche";
-  const li = (n, showWeek) => `<li class="${n.dir > 0 ? "pos" : n.dir < 0 ? "neg" : ""}">
-      <span class="wk">${showWeek ? `W${dayWeek(n.day)} ` : ""}${dayName(n.day)}</span><span class="tag ${n.kind}">${KIND[n.kind].icon} ${KIND[n.kind].label}</span>
-      <span>${n.text}</span></li>`;
-  if (S.day === 0) {
-    now.innerHTML = `<li class="empty">Der Markt ist bereit. Tippe auf <b>„Nächste Woche ▶“</b> und schau, was passiert!</li>`;
-  } else if (!S.thisWeek.length) {
-    now.innerHTML = `<li class="empty">Ruhige Woche – keine besonderen News. Die Kurse bewegen sich nur durch Zufall und die Kennzahlen.</li>`;
+  document.getElementById("newsSoon").innerHTML = S.companies.map(upcomingHTML).join("");
+  let list;
+  if (S.step === "ten" && S.recent) {
+    list = S.recent.map(newsById).filter(Boolean);
+    title.textContent = "📰 News der letzten 10 Wochen";
   } else {
-    const multi = S.thisWeek.some(n => dayWeek(n.day) !== weekNo());
-    title.textContent = multi ? "📰 News der letzten 10 Wochen" : "📰 News dieser Woche";
-    now.innerHTML = S.thisWeek.map(n => li(n, multi)).join("");
+    const wk = dayWeek(S.day);
+    list = S.news.filter(n => n.day > 0 && dayWeek(n.day) === wk);
+    title.textContent = S.day > 0 && S.day % DAYS !== 0 ? `📰 News dieser Woche (bis ${dayName(S.day)})` : "📰 News dieser Woche";
   }
-  const thisIds = new Set(S.thisWeek.map(n => n.id));
-  const older = S.news.filter(n => n.day > 0 && !thisIds.has(n.id)).slice(0, 60);
+  if (S.day === 0) {
+    now.innerHTML = `<li class="empty">Der Markt ist bereit. Tippe auf <b>„Nächste Woche ▶“</b> oder <b>„Nächster Tag ▸“</b> und schau, was passiert!</li>`;
+  } else if (!list.length) {
+    now.innerHTML = `<li class="empty">Ruhige Zeit – keine besonderen News. Die Kurse bewegen sich nur durch Zufall und die Kennzahlen.</li>`;
+  } else {
+    now.innerHTML = list.map(n => newsLiHTML(n, S.step === "ten")).join("");
+  }
+  const shown = new Set(list.map(n => n.id));
+  const older = S.news.filter(n => !shown.has(n.id) && n.day <= S.day && n.day > S.day - 130).slice(0, 60);
   old.innerHTML = older.length
-    ? older.map(n => li(n, true)).join("")
+    ? older.map(n => newsLiHTML(n, true)).join("")
     : `<li class="empty">Noch keine älteren News.</li>`;
 }
 
 /* =========================================================
    Chart-Daten
    Tages-Serie: ein Punkt pro Handelstag.
-   Intraday-Serie (für 1T / 1W): Verlauf innerhalb der Tage, alle 15 Minuten.
+   Stunden-Serie (für 1H / 1W): 8 Stunden-Kurse pro Tag (10–17 Uhr, 9 Uhr = Schluss vom Vortag).
    ========================================================= */
-const INTRA = 34; // 15-Minuten-Schritte von 9:00 bis 17:30
 const seriesCache = {};
+const cacheKey = c => c.id + ":" + S.gid + ":" + S.day + ":" + S.news.length;
 
-function dailySeries(c) {
-  const key = c.id + ":" + S.day + ":" + S.news.length;
-  if (seriesCache[c.id] && seriesCache[c.id].key === key) return seriesCache[c.id].s;
-  const pts = c.hp.map((p, i) => ({ p, f: c.hf[i], day: S.t0 + i }));
+function markersFor(c, indexOf) {
   const byIdx = {};
   newsForCompany(c).forEach(n => {
-    const i = n.day - S.t0;
-    if (i >= 0 && i < pts.length) (byIdx[i] = byIdx[i] || []).push(n);
+    const i = indexOf(n);
+    if (i != null) (byIdx[i] = byIdx[i] || []).push(n);
   });
-  const markers = Object.keys(byIdx).map(i => ({ i: +i, news: byIdx[i] }));
-  const s = { pts, markers, intraday: false };
-  seriesCache[c.id] = { key, s };
-  return s;
+  return Object.keys(byIdx).map(i => ({ i: +i, news: byIdx[i] }));
 }
 
-// Tagesverlauf als „Brücke“ vom Schlusskurs des Vortags zum Schlusskurs des Tages
-function intradayPath(c, idx, hasNews) {
-  const rnd = mulberry32(hashStr(c.id + ":" + (S.t0 + idx) + ":" + S.seed));
-  const gauss = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
-  const l0 = Math.log(c.hp[idx - 1]), l1 = Math.log(c.hp[idx]);
-  const s = (c.vol / SQRT_DAYS) / Math.sqrt(INTRA) * 1.1;
-  const jt = 1 + Math.floor(rnd() * (INTRA - 2)); // Uhrzeit der News
-  const W = [0];
-  for (let j = 1; j <= INTRA; j++) W.push(W[j - 1] + gauss() * s);
-  const lp = [];
-  for (let j = 0; j <= INTRA; j++) {
-    const lin = j / INTRA;
-    const g = hasNews ? 0.3 * lin + 0.7 * (j >= jt ? 1 : 0) : lin;
-    lp.push(l0 + (l1 - l0) * g + W[j] - lin * W[INTRA]);
+function dailySeries(c) {
+  const key = "d" + cacheKey(c);
+  if (seriesCache[key]) return seriesCache[key];
+  const pts = c.hp.map((p, i) => ({ p, f: c.hf[i], day: S.t0 + i }));
+  const markers = markersFor(c, n => { const i = n.day - S.t0; return i >= 0 && i < pts.length ? i : null; });
+  Object.keys(seriesCache).forEach(k => { if (k.startsWith("d" + c.id + ":")) delete seriesCache[k]; });
+  return (seriesCache[key] = { pts, markers, intraday: false });
+}
+
+function hourlySeries(c) {
+  const key = "h" + cacheKey(c);
+  if (seriesCache[key]) return seriesCache[key];
+  const D = Math.floor(c.hh.length / HOURS), n = c.hp.length, first = n - D;
+  const pts = [{ p: c.hp[first - 1], f: c.hf[first - 1], day: S.t0 + first - 1, h: HOURS }];
+  for (let k = 0; k < D; k++) {
+    for (let h = 1; h <= HOURS; h++) pts.push({ p: c.hh[k * HOURS + h - 1], f: c.hf[first + k], day: S.t0 + first + k, h });
   }
-  return { p: lp.map(Math.exp), jt };
+  const markers = markersFor(c, nw => {
+    const k = nw.day - S.t0 - first;
+    return k >= 0 && k < D ? k * HOURS + nw.hour + 1 : null;
+  });
+  Object.keys(seriesCache).forEach(k => { if (k.startsWith("h" + c.id + ":")) delete seriesCache[k]; });
+  return (seriesCache[key] = { pts, markers, intraday: true });
 }
 
-function intradaySeries(c) {
-  const daily = dailySeries(c), n = c.hp.length;
-  const first = n - 1 - DAYS;
-  const pts = [{ p: c.hp[first], f: c.hf[first], day: S.t0 + first, j: INTRA }];
-  const markers = [];
-  for (let idx = first + 1; idx < n; idx++) {
-    const m = daily.markers.find(m => m.i === idx);
-    const path = intradayPath(c, idx, !!m);
-    const base = pts.length - 1;
-    for (let j = 1; j <= INTRA; j++) pts.push({ p: path.p[j], f: c.hf[idx], day: S.t0 + idx, j });
-    if (m) markers.push({ i: base + path.jt, news: m.news });
-  }
-  return { pts, markers, intraday: true };
-}
-
-const timeLabel = j => {
-  const min = 9 * 60 + j * 15;
-  return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
-};
+const hourText = h => `${9 + h}:00`;
 function pointLabel(s, i) {
   const pt = s.pts[i];
-  return s.intraday ? `${dayLabel(pt.day)} · ${timeLabel(pt.j)} Uhr` : dayLabel(pt.day);
+  return s.intraday ? `${dayLabel(pt.day)} · ${hourText(pt.h)} Uhr` : dayLabel(pt.day);
+}
+// Anfang eines Ausschnitts: der Schlusskurs um 17 Uhr ist zugleich der Start (9 Uhr) des nächsten Tages
+function startLabel(s, i) {
+  const pt = s.pts[i];
+  if (s.intraday && pt.h === HOURS && i < s.pts.length - 1) return `${dayLabel(s.pts[i + 1].day)} · 9:00 Uhr`;
+  return pointLabel(s, i);
+}
+
+// News-Symbol als farbiger Kreis: ▲ grün, ▼ rot, ? gelb, = weiß
+function drawSym(ctx, x, y, r, sym) {
+  const sy = SYM[sym] || SYM.q;
+  ctx.save();
+  ctx.shadowColor = sy.color; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = sy.color; ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 2; ctx.strokeStyle = "#0b0e1a"; ctx.stroke();
+  ctx.fillStyle = "#07091a";
+  if (sym === "up" || sym === "down") {
+    const d = sym === "up" ? -1 : 1, w = r * 0.62, h = r * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(x, y + d * h); ctx.lineTo(x + w, y - d * h * 0.7); ctx.lineTo(x - w, y - d * h * 0.7);
+    ctx.closePath(); ctx.fill();
+  } else {
+    ctx.font = `900 ${Math.round(r * 1.4)}px -apple-system, "Segoe UI", sans-serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(sy.ch, x, y + 1);
+  }
+  ctx.restore();
 }
 
 /* =========================================================
@@ -1581,27 +1937,29 @@ function drawChart(canvas, c, s, a, b, opt = {}) {
   if (B - fyz > 16) { ctx.fillStyle = "rgba(80, 255, 160, .85)"; ctx.fillText("▼ GÜNSTIG", zx, B - 6); }
   ctx.textAlign = "left";
 
-  // News-Symbole (antippbar)
-  const hits = [];
-  const r = compact ? 8 : 11;
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  s.markers.forEach(m => {
-    if (m.i < a - 0.5 || m.i > b + 0.5) return;
-    const px = x(m.i), py = y(pts[m.i].p);
-    m.news.forEach((n, k) => {
-      const my = Math.max(T - 22 + r, py - (compact ? 16 : 22) - k * (r * 2 + 3));
-      ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, my + r); ctx.stroke();
-      ctx.beginPath(); ctx.arc(px, my, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#0b0e1a"; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = n.dir > 0 ? "#2bff88" : n.dir < 0 ? "#ff4d6d" : KIND[n.kind].color; ctx.stroke();
-      ctx.font = `${compact ? 9 : 12}px -apple-system, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
-      ctx.fillStyle = "#fff";
-      ctx.fillText(KIND[n.kind].icon, px, my + 1);
-      hits.push({ x: px, y: my, r: Math.max(r + 4, 16), news: [n] });
+  // „Was danach geschah“: Kurs-Entwicklung in den 5 Tagen nach einer vergangenen News
+  if (!compact && !s.intraday) {
+    ctx.font = "800 11px ui-monospace, Menlo, monospace";
+    ctx.textBaseline = "middle";
+    s.markers.forEach(m => {
+      const j = m.i + AFTER_DAYS;
+      if (j > pts.length - 1 || m.i < a - 0.5 || m.i > b + 0.5) return;
+      const x0 = x(m.i), x1 = x(j);
+      if (x1 - x0 < 28) return;
+      const ch = pts[j].p / pts[m.i].p - 1, col = ch >= 0 ? "#2bff88" : "#ff4d6d";
+      const y0 = y(pts[m.i].p), y1 = y(pts[j].p);
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([2, 4]);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(x1, y1, 3.5, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+      const txt = `${fmtPct(ch, 0)} in 5 T`, w = ctx.measureText(txt).width + 12;
+      const lx = clamp(x1 - w / 2, L + 2, R - w - 2), ly = clamp(y1 + (ch >= 0 ? 16 : -16), T + 4, B - 10);
+      ctx.fillStyle = "rgba(11,14,26,.88)"; ctx.strokeStyle = col; ctx.lineWidth = 1;
+      roundRect(ctx, lx, ly - 9, w, 18, 9); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = col; ctx.fillText(txt, lx + 6, ly + 0.5);
     });
-  });
-  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.textBaseline = "alphabetic";
+  }
 
   // aktueller Kurs + Warnsymbol
   const iLast = pts.length - 1;
@@ -1638,6 +1996,21 @@ function drawChart(canvas, c, s, a, b, opt = {}) {
   }
   ctx.restore();
 
+  // News-Symbole (antippbar): großer farbiger Kreis über dem Kurs
+  const hits = [];
+  const r = compact ? 9 : 14;
+  s.markers.forEach(m => {
+    if (m.i < a - 0.5 || m.i > b + 0.5) return; // außerhalb des Ausschnitts
+    const px = x(m.i), py = y(pts[m.i].p);
+    m.news.forEach((n, k) => {
+      const my = Math.max(T - 24 + r, py - (compact ? 20 : 30) - k * (r * 2 + 4));
+      ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, my + r); ctx.stroke();
+      drawSym(ctx, px, my, r, n.sym);
+      hits.push({ x: px, y: my, r: Math.max(r + 6, 20), news: n });
+    });
+  });
+
   // rechte Achse: Werte + Etiketten für Kurs und Kennzahlen-Wert
   ctx.font = (compact ? "10px " : "11px ") + "ui-monospace, Menlo, monospace";
   ctx.textBaseline = "middle";
@@ -1659,6 +2032,16 @@ function drawChart(canvas, c, s, a, b, opt = {}) {
     ctx.fillStyle = "rgba(255,255,255,.75)";
     ctx.font = "800 11px -apple-system, Segoe UI, sans-serif";
     ctx.fillText("weiß = Wert laut Kennzahlen", L + 6, 16);
+    // angekündigte Quartalszahlen oben rechts
+    if (c.pending && c.pending.day > S.day) {
+      const left = c.pending.day - S.day, txt = `Quartalszahlen in ${left} ${left === 1 ? "Tag" : "Tagen"} · erwartet ${fmtPct(c.pending.exp, 0)}`;
+      ctx.font = "800 12px -apple-system, Segoe UI, sans-serif";
+      const w = ctx.measureText(txt).width + 40;
+      ctx.fillStyle = "rgba(255,204,0,.12)"; ctx.strokeStyle = "rgba(255,204,0,.7)"; ctx.lineWidth = 1;
+      roundRect(ctx, R - w, 4, w, 24, 12); ctx.fill(); ctx.stroke();
+      drawSym(ctx, R - w + 13, 16, 9, "q");
+      ctx.fillStyle = "#ffe37a"; ctx.textBaseline = "middle"; ctx.fillText(txt, R - w + 28, 16.5); ctx.textBaseline = "alphabetic";
+    }
   }
   return { hits, L, R, T, B };
 }
@@ -1673,12 +2056,15 @@ function roundRect(ctx, x, y, w, h, r) {
 function timeTicks(s, a, b, maxTicks) {
   const out = [], pts = s.pts, i0 = Math.max(0, Math.ceil(a)), i1 = Math.min(pts.length - 1, Math.floor(b));
   if (s.intraday) {
-    const daysVisible = (b - a) / INTRA;
-    const hourStep = daysVisible > 2 ? 0 : daysVisible > 0.9 ? 8 : 4;
+    const daysVisible = (b - a) / HOURS;
+    const hourStep = daysVisible > 3 ? 0 : daysVisible > 1.6 ? 4 : 1;
     for (let i = i0; i <= i1; i++) {
       const pt = pts[i];
-      if (pt.j === INTRA && i < pts.length - 1) out.push({ i, label: `${dayName(pts[i + 1].day)} W${dayWeek(pts[i + 1].day)}`, major: true });
-      else if (hourStep && pt.j % hourStep === 0 && pt.j !== 0) out.push({ i, label: timeLabel(pt.j), major: false });
+      if (pt.h === HOURS && i < pts.length - 1) {
+        const nx = pts[i + 1];
+        out.push({ i, label: hourStep === 1 ? `${dayName(nx.day)} 9:00` : `${dayName(nx.day)} W${dayWeek(nx.day)}`, major: true });
+      } else if (hourStep && pt.h % hourStep === 0 && pt.h !== HOURS) out.push({ i, label: hourText(pt.h), major: false });
+      else if (hourStep === 1 && pt.h === HOURS) out.push({ i, label: "17:00", major: false });
     }
     return out;
   }
@@ -1706,8 +2092,8 @@ function hitTest(hits, px, py) {
    Detailansicht mit Zoom (Pinch / Mausrad) und Wischen
    ========================================================= */
 const RANGES = {
-  "1T":  { intraday: true, len: INTRA, label: "1 Tag" },
-  "1W":  { intraday: true, len: DAYS * INTRA, label: "1 Woche" },
+  "1H":  { intraday: true, len: HOURS, label: "1 Tag (stündlich)" },
+  "1W":  { intraday: true, len: DAYS * HOURS, label: "1 Woche (stündlich)" },
   "1M":  { intraday: false, len: 21, label: "1 Monat" },
   "1J":  { intraday: false, len: YEAR_DAYS, label: "1 Jahr" },
   "all": { intraday: false, len: Infinity, label: "Alles" },
@@ -1744,7 +2130,7 @@ function setRange(r) {
   DV.range = r;
   DV.zoomed = false;
   const c = company(DV.id), cfg = RANGES[r];
-  DV.s = cfg.intraday ? intradaySeries(c) : dailySeries(c);
+  DV.s = cfg.intraday ? hourlySeries(c) : dailySeries(c);
   const n = DV.s.pts.length;
   DV.b = n - 1;
   DV.a = Math.max(0, n - 1 - Math.min(cfg.len, n - 1));
@@ -1775,7 +2161,7 @@ function drawDetail() {
   const el = document.getElementById("dChg");
   el.textContent = `${chg >= 0 ? "▲" : "▼"} ${fmtPct(chg)} ${DV.zoomed ? "im Ausschnitt" : RANGES[DV.range].label}`;
   el.className = "chg " + (chg >= 0 ? "up" : "down");
-  document.getElementById("dRangeInfo").textContent = `${pointLabel(s, ia)} – ${pointLabel(s, ib)}`;
+  document.getElementById("dRangeInfo").textContent = `${startLabel(s, ia)} – ${pointLabel(s, ib)}`;
 }
 let drawQueued = false;
 function queueDraw() {
@@ -1785,7 +2171,7 @@ function queueDraw() {
 }
 
 function setWindow(a, b) {
-  const n = DV.s.pts.length, minSpan = DV.s.intraday ? 8 : 5;
+  const n = DV.s.pts.length, minSpan = DV.s.intraday ? 4 : 5;
   let span = clamp(b - a, Math.min(minSpan, n - 1), n - 1);
   const mid = (a + b) / 2;
   a = mid - span / 2; b = mid + span / 2;
@@ -1865,7 +2251,7 @@ function endPointer(e) {
   dCanvas.classList.remove("grabbing");
   if (wasTap && e.type === "pointerup") {
     const hit = hitTest(DV.hits, pos.x, pos.y);
-    if (hit) showNews(company(DV.id), hit.news);
+    if (hit) showNews(hit.news, company(DV.id));
   }
   startGesture(false);
 }
@@ -1895,27 +2281,226 @@ detail.addEventListener("click", e => {
   if (b.id === "dClose") return closeDetail();
   if (b.id === "dWarn") return showWarn(c);
   if (b.id === "dNext") return nextWeek();
+  if (b.id === "dDay") return nextDay();
   if (dTrade.contains(b)) handleTradeButton(b, c);
 });
 
 /* =========================================================
-   Ergebnis teilen
+   Saison: 26 Wochen, danach Ergebnis-Karte + „Meine Rekorde“
+   ========================================================= */
+function buildResult() {
+  const side = d => ({ end: Math.round(depotValue(d)), hi: Math.round(d.hi), lo: Math.round(d.lo), dd: d.maxDD, trades: d.trades });
+  const t = side(S.depots.trader), i = side(S.depots.investor);
+  return {
+    no: S.seasonNo, date: new Date().toISOString().slice(0, 10), weeks: SEASON_WEEKS, trader: t, investor: i,
+    winner: Math.abs(t.end - i.end) < 1 ? "draw" : t.end > i.end ? "trader" : "investor",
+    hits: { news: { n: S.stats.news.n, hit: S.stats.news.hit }, plain: { n: S.stats.plain.n, hit: S.stats.plain.hit } },
+  };
+}
+// neue Bestwerte im Vergleich zu allen früheren Saisons
+function recordBadges(res, prev) {
+  if (!prev.length) return ["🥇 Deine erste Saison in „Meine Rekorde“!"];
+  const out = [];
+  const best = f => Math.max(...prev.map(f));
+  if (res.trader.end > best(r => r.trader.end)) out.push("🏅 Neuer Rekord: bestes Trader-Ergebnis");
+  if (res.investor.end > best(r => r.investor.end)) out.push("🏅 Neuer Rekord: bestes Investor-Ergebnis");
+  const dd = Math.min(res.trader.dd, res.investor.dd);
+  if (dd < Math.min(...prev.map(r => Math.min(r.trader.dd, r.investor.dd)))) out.push("🛡️ Neuer Rekord: kleinster Rückgang");
+  const hn = hitRate(res.hits.news);
+  const prevHn = prev.map(r => r.hits.news.n >= 3 ? hitRate(r.hits.news) : -1);
+  if (res.hits.news.n >= 3 && hn > Math.max(...prevHn)) out.push("🎯 Neuer Rekord: beste News-Trefferquote");
+  return out;
+}
+function finishSeason() {
+  evalTrades(true);
+  const res = buildResult();
+  res.badges = recordBadges(res, RECORDS);
+  RECORDS.unshift(res);
+  if (RECORDS.length > 100) RECORDS.length = 100;
+  saveRecords();
+  S.over = true;
+  S.result = res;
+}
+
+const fmtDD = dd => dd > 0.0005 ? `−${nf1.format(dd * 100)} %` : "0,0 %";
+const fmtDate = iso => { const [y, m, d] = String(iso).split("-"); return d && m && y ? `${d}.${m}.${y}` : ""; };
+const retPct = v => fmtPct(v / START_CASH - 1);
+function winnerText(res) {
+  return res.winner === "draw" ? "⚖️ Gleichstand!" : `🏆 ${DEPOTS[res.winner].icon} ${DEPOTS[res.winner].name} gewinnt die Saison!`;
+}
+
+function seasonCardHTML(res) {
+  const col = key => {
+    const r = res[key], m = DEPOTS[key];
+    return `<div class="rc-side" style="--dc:${m.color}">
+      <div class="rc-name">${m.icon} ${m.name}</div>
+      <div class="rc-big">${fmtEUR0(r.end)}</div>
+      <div class="rc-pct ${r.end >= START_CASH ? "up" : "down"}">${retPct(r.end)}</div>
+      <div class="rc-line"><span>⬆ Höchster Stand</span><b>${fmtEUR0(r.hi)}</b></div>
+      <div class="rc-line"><span>⬇ Tiefster Stand</span><b>${fmtEUR0(r.lo)}</b></div>
+      <div class="rc-line"><span>📉 Größter Rückgang</span><b>${fmtDD(r.dd)}</b></div>
+      <div class="rc-line"><span>🔁 Käufe/Verkäufe</span><b>${r.trades}</b></div>
+    </div>`;
+  };
+  const w = res.winner === "draw" ? "" : `style="color:${DEPOTS[res.winner].color}"`;
+  return `<div class="rc-win" ${w}>${winnerText(res)}</div>
+    <div class="rc-cols">${col("trader")}${col("investor")}</div>
+    <div class="rc-hits">
+      ${hitRowHTML("📰 Trefferquote mit News", res.hits.news, "#ffcc00")}
+      ${hitRowHTML("🎲 Trefferquote ohne News", res.hits.plain, "#a26bff")}
+    </div>
+    ${res.badges && res.badges.length ? `<div class="badges">${res.badges.map(b => `<span class="chip">${b}</span>`).join("")}</div>` : ""}
+    <p style="font-size:13px">${recordsWork ? "💾 Gespeichert in „🏆 Meine Rekorde“." : "💾 Rekorde lassen sich in diesem Browser gerade nicht dauerhaft speichern (z. B. privates Fenster)."}</p>`;
+}
+
+function showSeasonCard() {
+  const res = S.result;
+  if (!res) return;
+  showInfo({
+    icon: "🏁", title: `Saison ${res.no} beendet – ${res.weeks} Wochen gespielt`,
+    html: seasonCardHTML(res),
+    actions: [
+      { label: "📤 Ergebnis teilen", cls: "btn-share", fn: () => shareSeason(res) },
+      { label: "🏆 Meine Rekorde", cls: "btn-ghost", fn: showRecords },
+      { label: "▶ Neue Saison starten", cls: "btn-buy", fn: newSeason },
+    ],
+    closeLabel: "👀 Erst noch Charts ansehen",
+  });
+}
+
+function showRecords() {
+  if (!RECORDS.length) {
+    showInfo({ icon: "🏆", title: "Meine Rekorde",
+      html: `<p>Noch keine beendete Saison. Eine Saison dauert <b>${SEASON_WEEKS} Wochen</b> – danach landet dein Ergebnis automatisch hier.</p>
+             <p>Die Rekorde bleiben auch nach „↺ Neustart“ erhalten.</p>` });
+    return;
+  }
+  const bestBy = f => RECORDS.reduce((b, r) => (f(r) > f(b) ? r : b), RECORDS[0]);
+  const bt = bestBy(r => r.trader.end), bi = bestBy(r => r.investor.end);
+  const bd = bestBy(r => -Math.min(r.trader.dd, r.investor.dd));
+  const withNews = RECORDS.filter(r => r.hits.news.n >= 3);
+  const bh = withNews.length ? withNews.reduce((b, r) => (hitRate(r.hits.news) > hitRate(b.hits.news) ? r : b)) : null;
+  const wins = { trader: 0, investor: 0 };
+  RECORDS.forEach(r => { if (wins[r.winner] != null) wins[r.winner]++; });
+  const rows = RECORDS.slice(0, 30).map(r => `<div class="rec-row">
+      <span class="no">S${r.no}</span>
+      <span>⚡ <b class="${r.trader.end >= START_CASH ? "up" : "down"}">${retPct(r.trader.end)}</b> · 🌳 <b class="${r.investor.end >= START_CASH ? "up" : "down"}">${retPct(r.investor.end)}</b> · ${r.winner === "draw" ? "⚖️" : DEPOTS[r.winner].icon + " gewinnt"}</span>
+      <span class="r2">${fmtDate(r.date)} · 🎯 News ${hitRate(r.hits.news) === null ? "–" : nf0.format(hitRate(r.hits.news) * 100) + " %"} / ohne ${hitRate(r.hits.plain) === null ? "–" : nf0.format(hitRate(r.hits.plain) * 100) + " %"}</span>
+    </div>`).join("");
+  showInfo({
+    icon: "🏆", title: `Meine Rekorde · ${RECORDS.length} ${RECORDS.length === 1 ? "Saison" : "Saisons"}`,
+    html: `<div class="rec-best">
+        <div>⚡ Bestes Trader-Ergebnis<b class="up">${retPct(bt.trader.end)}</b>Saison ${bt.no}</div>
+        <div>🌳 Bestes Investor-Ergebnis<b class="up">${retPct(bi.investor.end)}</b>Saison ${bi.no}</div>
+        <div>🛡️ Kleinster Rückgang<b>${fmtDD(Math.min(bd.trader.dd, bd.investor.dd))}</b>Saison ${bd.no}</div>
+        <div>🎯 Beste News-Trefferquote<b>${bh ? nf0.format(hitRate(bh.hits.news) * 100) + " %" : "–"}</b>${bh ? "Saison " + bh.no : "ab 3 News-Trades"}</div>
+      </div>
+      <p>Siege: ⚡ Trader <b>${wins.trader}</b> · 🌳 Investor <b>${wins.investor}</b></p>
+      <div class="rec-list">${rows}</div>
+      ${recordsWork ? "" : `<p style="font-size:13px">💾 Dauerhaftes Speichern klappt in diesem Browser gerade nicht – die Rekorde gelten nur bis zum Schließen.</p>`}`,
+  });
+}
+
+function newSeason() {
+  UI.qty = {};
+  if (DV.id) closeDetail();
+  newGame(); buildCards(); render(false); save();
+  toast(`▶ Saison ${S.seasonNo} beginnt – beide Depots starten mit 10.000 €`);
+}
+
+/* =========================================================
+   Ergebnis teilen (als Text – und am Saisonende auch als Bild)
    ========================================================= */
 function shareText() {
   const t = S.depots.trader, i = S.depots.investor;
   const vt = depotValue(t), vi = depotValue(i);
-  const line = (m, d, v) => `${m.icon} ${m.name}: ${fmtEUR0(v)} (${fmtPct(v / START_CASH - 1)}) · höchster Stand ${fmtEUR0(d.hi)} · tiefster Stand ${fmtEUR0(d.lo)} · größter Rückgang −${nf1.format(d.maxDD * 100)} %`;
+  const line = (m, d, v) => `${m.icon} ${m.name}: ${fmtEUR0(v)} (${fmtPct(v / START_CASH - 1)}) · höchster Stand ${fmtEUR0(d.hi)} · tiefster Stand ${fmtEUR0(d.lo)} · größter Rückgang ${fmtDD(d.maxDD)}`;
   const diff = vt - vi;
   const lead = Math.abs(diff) < 0.5 ? "⚖️ Gleichstand!"
     : `🏆 ${diff > 0 ? "Trader" : "Investor"} liegt vorne: +${fmtEUR0(Math.abs(diff))}`;
   return [
-    `📈 Börsen-Duell (Simulation) – ${weekNo()} ${weekNo() === 1 ? "Woche" : "Wochen"} gespielt`,
+    `📈 Börsen-Duell (Simulation) – Saison ${S.seasonNo}, Woche ${weekNo()} von ${SEASON_WEEKS}`,
     line(DEPOTS.trader, t, vt),
     line(DEPOTS.investor, i, vi),
     lead,
+    hitsLine(S.stats),
     "Nur ein Lernspiel mit erfundenen Kursen – keine Anlageberatung.",
   ].join("\n");
 }
+const pctOrDash = b => hitRate(b) === null ? "–" : nf0.format(hitRate(b) * 100) + " %";
+const tradesN = n => `${n} ${n === 1 ? "Trade" : "Trades"}`;
+const hitsLine = h => `🎯 Trefferquote: mit News ${pctOrDash(h.news)} (${tradesN(h.news.n)}) · ohne News ${pctOrDash(h.plain)} (${tradesN(h.plain.n)})`;
+function seasonText(res) {
+  const line = key => { const r = res[key], m = DEPOTS[key];
+    return `${m.icon} ${m.name}: ${fmtEUR0(r.end)} (${retPct(r.end)}) · höchster Stand ${fmtEUR0(r.hi)} · tiefster Stand ${fmtEUR0(r.lo)} · größter Rückgang ${fmtDD(r.dd)}`; };
+  return [
+    `🏁 Börsen-Duell (Simulation) – Saison ${res.no} beendet (${res.weeks} Wochen)`,
+    line("trader"), line("investor"), winnerText(res), hitsLine(res.hits),
+    "Nur ein Lernspiel mit erfundenen Kursen – keine Anlageberatung.",
+  ].join("\n");
+}
+
+// Ergebnis-Karte als Bild (PNG) zeichnen
+function resultImage(res) {
+  const W = 1080, H = 1350, cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const g = cv.getContext("2d"), F = '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#1b1f4a"); bg.addColorStop(0.6, "#0b0e1a"); bg.addColorStop(1, "#2a1048");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  // Simulations-Banner
+  g.fillStyle = "#ffcc00"; g.fillRect(0, 0, W, 96);
+  g.fillStyle = "#ffb300";
+  for (let x = -100; x < W + 100; x += 72) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 36, 0); g.lineTo(x - 60, 96); g.lineTo(x - 96, 96); g.closePath(); g.fill(); }
+  g.fillStyle = "#111"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = `900 32px ${F}`; g.fillText("⚠ SIMULATION · erfundene Kurse · keine Anlageberatung", W / 2, 50);
+  // Titel
+  const tg = g.createLinearGradient(240, 0, 840, 0);
+  tg.addColorStop(0, "#00e5ff"); tg.addColorStop(0.5, "#a26bff"); tg.addColorStop(1, "#ff4dd2");
+  g.fillStyle = tg; g.font = `900 84px ${F}`; g.fillText("BÖRSEN-DUELL", W / 2, 190);
+  g.fillStyle = "#9aa3d0"; g.font = `700 38px ${F}`; g.fillText(`Saison ${res.no} · ${res.weeks} Wochen · Ergebnis-Karte`, W / 2, 255);
+  g.fillStyle = res.winner === "draw" ? "#e8ebff" : DEPOTS[res.winner].hex;
+  g.font = `900 52px ${F}`; g.fillText(winnerText(res), W / 2, 335);
+  // zwei Depot-Spalten
+  const panel = (key, x) => {
+    const r = res[key], m = DEPOTS[key], y = 390, w = 490, h = 520;
+    g.fillStyle = "rgba(22,27,51,.92)"; g.strokeStyle = m.hex; g.lineWidth = 5;
+    roundRect(g, x, y, w, h, 28); g.fill(); g.stroke();
+    g.textAlign = "left"; g.fillStyle = m.hex; g.font = `900 44px ${F}`; g.fillText(`${m.icon} ${m.name}`, x + 30, y + 55);
+    g.fillStyle = "#e8ebff"; g.font = `800 60px ui-monospace, Menlo, monospace`; g.fillText(fmtEUR0(r.end), x + 30, y + 135);
+    g.fillStyle = r.end >= START_CASH ? "#2bff88" : "#ff4d6d"; g.font = `800 42px ui-monospace, Menlo, monospace`; g.fillText(retPct(r.end), x + 30, y + 195);
+    const rows = [["⬆ Höchster Stand", fmtEUR0(r.hi)], ["⬇ Tiefster Stand", fmtEUR0(r.lo)], ["📉 Größter Rückgang", `${fmtDD(r.dd)}`], ["🔁 Trades", String(r.trades)]];
+    rows.forEach(([l, v], k) => {
+      const yy = y + 275 + k * 66;
+      g.fillStyle = "rgba(255,255,255,.08)"; g.fillRect(x + 30, yy - 38, w - 60, 2);
+      g.textAlign = "left"; g.fillStyle = "#9aa3d0"; g.font = `700 26px ${F}`; g.fillText(l, x + 26, yy);
+      g.textAlign = "right"; g.fillStyle = "#e8ebff"; g.font = `800 28px ui-monospace, Menlo, monospace`; g.fillText(v, x + w - 26, yy);
+    });
+  };
+  panel("trader", 40); panel("investor", 550);
+  // Trefferquote
+  const bar = (label, b, color, y) => {
+    const r = hitRate(b);
+    g.textAlign = "left"; g.fillStyle = "#e8ebff"; g.font = `800 34px ${F}`; g.fillText(label, 60, y);
+    g.textAlign = "right"; g.font = `800 34px ui-monospace, Menlo, monospace`;
+    g.fillText(r === null ? "–" : `${nf0.format(r * 100)} %  (${b.hit}/${b.n})`, W - 60, y);
+    g.fillStyle = "rgba(255,255,255,.1)"; roundRect(g, 60, y + 28, W - 120, 26, 13); g.fill();
+    if (r) { g.fillStyle = color; roundRect(g, 60, y + 28, Math.max(26, (W - 120) * r), 26, 13); g.fill(); }
+    g.fillStyle = "rgba(255,255,255,.5)"; g.fillRect(W / 2 - 1, y + 24, 3, 34);
+  };
+  g.textAlign = "left"; g.fillStyle = "#00e5ff"; g.font = `900 34px ${F}`; g.fillText("🎯 TREFFERQUOTE", 60, 985);
+  bar("📰 Trades kurz nach einer News", res.hits.news, "#ffcc00", 1050);
+  bar("🎲 Trades ohne News", res.hits.plain, "#a26bff", 1150);
+  g.textAlign = "center"; g.fillStyle = "#9aa3d0"; g.font = `600 28px ${F}`;
+  g.fillText("Lernspiel · Trading gegen Investieren · alle Zahlen erfunden", W / 2, 1270);
+  return cv.toDataURL("image/png");
+}
+function dataURLtoFile(url, name) {
+  const [head, b64] = url.split(","), bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([arr], name, { type: head.slice(5).split(";")[0] });
+}
+
 async function copyText(text) {
   try {
     if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
@@ -1930,43 +2515,74 @@ async function copyText(text) {
     return ok;
   } catch (e) { return false; }
 }
-async function shareResult() {
-  const text = shareText();
+// Teilen: zuerst das Teilen-Menü des Geräts (iPad/Mac), sonst kopieren + Vorschau
+async function shareOut(text, title, img, fileName) {
+  let file = null;
+  if (img) { try { file = dataURLtoFile(img, fileName); } catch (e) { file = null; } }
   if (navigator.share) {
-    try { await navigator.share({ title: "Börsen-Duell – mein Ergebnis", text }); return; }
-    catch (e) { if (e && e.name === "AbortError") return; }
+    try {
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ title, text, files: [file] });
+      else await navigator.share({ title, text });
+      return;
+    } catch (e) { if (e && e.name === "AbortError") return; }
   }
   const ok = await copyText(text);
   const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   showInfo({
     icon: "📤", title: ok ? "Ergebnis kopiert!" : "Dein Ergebnis",
     html: `<p>${ok ? "Der Text liegt in der Zwischenablage – du kannst ihn jetzt in eine Nachricht einfügen." : "Markiere den Text und kopiere ihn, um ihn zu teilen."}</p>
-      <div class="m-share">${esc}</div>`,
+      <div class="m-share">${esc}</div>
+      ${img ? `<img class="share-img" src="${img}" alt="Ergebnis-Karte als Bild">
+        <p style="text-align:center"><a class="btn btn-ghost" href="${img}" download="${fileName}">🖼️ Bild speichern</a></p>` : ""}`,
     actions: ok ? [] : [{ label: "📋 Nochmal kopieren", cls: "btn-ghost", keepOpen: true, fn: async (btn) => { btn.textContent = (await copyText(text)) ? "✅ Kopiert" : "Bitte von Hand kopieren"; } }],
   });
   if (ok) toast("📋 Ergebnis in die Zwischenablage kopiert");
+}
+function shareSeason(res) {
+  let img = null;
+  try { img = resultImage(res); } catch (e) { img = null; }
+  shareOut(seasonText(res), `Börsen-Duell – Saison ${res.no}`, img, `boersen-duell-saison-${res.no}.png`);
+}
+function shareResult() {
+  if (S.over && S.result) return shareSeason(S.result);
+  shareOut(shareText(), "Börsen-Duell – mein Zwischenstand", null, "");
 }
 
 /* =========================================================
    Bedienung
    ========================================================= */
-function nextWeek() { simWeek(); render(true); save(); }
-document.getElementById("btnNext").addEventListener("click", nextWeek);
-document.getElementById("btnTen").addEventListener("click", () => {
+// Simuliert bis zu n Handelstage – stoppt am Saisonende
+function advance(n, step) {
+  if (S.over) return showSeasonCard();
+  S.stats.lastDone = null;
   const collected = [];
-  for (let i = 0; i < 10; i++) { simWeek(); collected.push(...S.thisWeek); }
-  S.thisWeek = collected;
+  for (let i = 0; i < n && S.day < SEASON_DAYS; i++) collected.push(...simDay());
+  S.step = step;
+  S.recent = step === "ten" ? collected.map(e => e.id) : null;
+  if (S.day >= SEASON_DAYS) finishSeason();
   render(true);
   save();
-});
+  const ld = S.stats.lastDone;
+  if (ld && ld.news.n + ld.plain.n > 0) {
+    const part = (lbl, b) => b.n ? `${lbl} ${b.hit}/${b.n} Treffer` : "";
+    toast(`🎯 Ausgewertet: ${[part("📰 mit News", ld.news), part("🎲 ohne News", ld.plain)].filter(Boolean).join(" · ")}`);
+  }
+  if (S.over) showSeasonCard();
+}
+function nextDay() { advance(1, "day"); }
+function nextWeek() { advance((weekNo() + 1) * DAYS - S.day, "week"); }
+document.getElementById("btnNext").addEventListener("click", nextWeek);
+document.getElementById("btnDay").addEventListener("click", nextDay);
+document.getElementById("btnTen").addEventListener("click", () => advance((weekNo() + 10) * DAYS - S.day, "ten"));
 document.getElementById("btnReset").addEventListener("click", () => {
-  if (confirm("Neues Spiel starten? Markt und beide Depots beginnen wieder bei 10.000 €. Der gespeicherte Spielstand wird gelöscht.")) {
+  if (confirm("Neues Spiel starten? Markt und beide Depots beginnen wieder bei 10.000 €. Der laufende Spielstand wird gelöscht – deine Rekorde bleiben erhalten.")) {
     UI.qty = {};
     clearSave();
     newGame(); buildCards(); render(false); save();
   }
 });
 document.getElementById("btnShare").addEventListener("click", shareResult);
+document.getElementById("btnRecords").addEventListener("click", showRecords);
 grid.addEventListener("click", e => {
   const b = e.target.closest("button, [data-act='open']");
   const card = e.target.closest(".card");
@@ -1974,7 +2590,14 @@ grid.addEventListener("click", e => {
   const c = company(card.dataset.id);
   if (b.dataset.act === "open") return openDetail(c.id);
   if (b.dataset.act === "warn") return showWarn(c);
+  if (b.dataset.act === "news") return showNews(newsById(+b.dataset.nid), c);
   handleTradeButton(b, c);
+});
+document.getElementById("news").addEventListener("click", e => {
+  const el = e.target.closest("[data-nid]");
+  if (!el) return;
+  const n = newsById(+el.dataset.nid);
+  if (n) showNews(n, company(n.ids[0]));
 });
 document.getElementById("depots").addEventListener("click", e => {
   const b = e.target.closest("button[data-depot]");
@@ -1993,12 +2616,15 @@ window.addEventListener("resize", () => {
 });
 
 const loaded = load();
+const oldVersion = !loaded && hadOldSave();
 if (!loaded) newGame();
 btnExp.setAttribute("aria-pressed", String(!document.body.classList.contains("no-exp")));
 buildCards();
 render(false);
 save();
-if (loaded && S.day > 0) toast(`💾 Willkommen zurück – Spielstand von Woche ${weekNo()} geladen`);
+if (loaded && S.day > 0) toast(`💾 Willkommen zurück – Saison ${S.seasonNo}, Woche ${dayWeek(S.day)} geladen`);
+else if (oldVersion) toast("✨ Version 0.4 – neues Spiel mit Stunden-Kursen, News und Saisons");
+if (loaded && S.over) showSeasonCard();
 </script>
 </body>
 </html>
